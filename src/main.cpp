@@ -136,7 +136,7 @@ bool contactless_liquid_level(){
   }
 }
 
-String reservior_level(){
+String reservoir_level(){
   
   int floatLow = !digitalRead(Float_Switch_Low);
   int floatHigh = !digitalRead(Float_Switch_High);
@@ -270,7 +270,7 @@ void loop() {
   sensor_data["UV_light"] = UV_light();
   sensor_data["infrared_light"] = infrared_light();
   sensor_data["visible_light"] = visible_light();
-  sensor_data["reservior_level"] = reservior_level();
+  sensor_data["reservoir_level"] = reservoir_level();
 
   serializeJson(sensor_data, Serial);
   serializeJsonPretty(sensor_data, Serial);
