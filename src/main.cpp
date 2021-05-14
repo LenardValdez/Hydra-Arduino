@@ -12,6 +12,10 @@
 #include <DallasTemperature.h>  //Temprature probe sensor library
 #include <Wire.h>
 #include <OneWire.h>
+#include <ArduinoJson.h>
+#include <Ethernet.h>
+#include <PubSubClient.h>
+#include <SPI.h>
 
 //Pins of Analog sensors
 #define PH_PIN A1           //PH Level Sensor
@@ -27,14 +31,14 @@ const int Float_Switch_Low = 6;     // Lower float siwtch on reservior
 const int Float_Switch_High = 7;    // Higher float siwtch on reservior
 
 //Relay PINS and Assignment
-const int RELAY_PIN1 = 22;      //peristaltic pump 5 (right most)
-const int RELAY_PIN2 = 24;      //peristaltic pump 4
-const int RELAY_PIN3 = 26;      //peristaltic pump 3
-const int RELAY_PIN4 = 28;      //peristaltic pump 2
-const int RELAY_PIN5 = 30;      //peristaltic pump 1 (left most)
+// const int RELAY_PIN1 = 22;      //peristaltic pump 5 (right most)
+// const int RELAY_PIN2 = 24;      //peristaltic pump 4
+// const int RELAY_PIN3 = 26;      //peristaltic pump 3
+// const int RELAY_PIN4 = 28;      //peristaltic pump 2
+// const int RELAY_PIN5 = 30;      //peristaltic pump 1 (left most)
 const int RELAY_PIN6 = 32;      //Fan
 const int RELAY_PIN7 = 34;      //Grow light
-const int RELAY_PIN8 = 36;      //Water pump
+// const int RELAY_PIN8 = 36;      //Water pump
 
 //Sensor Initialization
 DFRobot_PH ph;
@@ -54,15 +58,33 @@ float temperature;
 float tdsValue = 0;
 int liqsenseor = 0;
 
+//Ethernet Variable for connecting
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+IPAddress ip(192, 168, 1, 117);
+IPAddress myDns(192, 168, 1, 4);
+IPAddress gateway(192, 168, 1, 1);
+IPAddress subnet(255, 255, 255, 0);
+
+// MQTT server IP
+const char* server = "192.168.1.65";
+
+// Ethernet and MQTT related objects
+EthernetClient ethClient;
+PubSubClient mqttClient(ethClient);
+
+//sensor data json
+DynamicJsonDocument sensor_data(1024);
+
 void setup() {
   Serial.begin(115200);
+
+  Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
   pinMode(Contact_less_sensor,INPUT);
   pinMode(RELAY_PIN7, OUTPUT);
   pinMode(RELAY_PIN6, OUTPUT);
-  pinMode(RELAY_PIN1, OUTPUT);
 
   //TDS setup default params
   gravityTds.setPin(TdsSensorPin);
@@ -82,16 +104,36 @@ void setup() {
   }
 }
 
+void reconnect() {
+  // Loop until we're reconnected
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (mqttClient.connect("arduinoClient")) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      mqttClient.publish("outTopic","hello world");
+      // ... and resubscribe
+      mqttClient.subscribe("inTopic");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
 bool contactless_liquid_level(){
   liqsenseor=digitalRead(Contact_less_sensor);
-    if (liqsenseor==HIGH) { 
-      return true;
-//      Serial.println("Water level is detected");
-    } 
-    else { 
-      return false;
-//      Serial.println("No water"); 
-    }
+
+  if (liqsenseor == HIGH) { 
+    return true;
+  } 
+  else { 
+    return false;
+  }
 }
 
 String reservior_level(){
@@ -101,21 +143,12 @@ String reservior_level(){
   
   if(floatHigh == 1 && floatLow == 0){
     return ("100%");
-//    Serial.println(floatHigh);
-//    Serial.println(floatLow);
-//    Serial.println("100%");
     }
   else if(floatHigh == 0 && floatLow == 0){
     return ("50%");
-//    Serial.println(floatHigh);
-//    Serial.println(floatLow);
-//    Serial.println("50%");
     }
   else if(floatHigh == 0 && floatLow == 1){
     return ("0%");
-//    Serial.println(floatHigh);
-//    Serial.println(floatLow);
-//    Serial.println("0%");
     }
   else {
     return ("Float sensors might be stuck");
@@ -146,14 +179,9 @@ float PH_reading() {
     static unsigned long timepoint = millis();
     if(millis()-timepoint>1000U){                  //time interval: 1s
         timepoint = millis();
-        // temperature = readProbeTemperature();      // read your temperature sensor to execute temperature compensation
         phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
         phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
         return (phValue);
-//        Serial.print("temperature:");
-//        Serial.print(temperature,1);
-//        Serial.print("^C  pH:");
-//        Serial.println(phValue,2);
     }   
 }
 
@@ -163,23 +191,16 @@ float EC_reading(){
     {
       timepoint = millis();
       ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
-      // temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
       ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
       return (ecValue);
-//      Serial.print("^C  EC:");
-//      Serial.print(ecValue,4);
-//      Serial.println("ms/cm");
     }
 }
 
 float TDS_reading() {
-  // temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
   gravityTds.setTemperature(temperature);       // set the temperature and execute temperature compensation
   gravityTds.update();                          //sample and calculate 
   tdsValue = gravityTds.getTdsValue();          // then get the value
   return (tdsValue);
-//  Serial.print(tdsValue,4);
-//  Serial.println("ppm");
 }
 
 void light_check(int ir_value){
@@ -217,21 +238,58 @@ float Air_temperature(){
   return (temp);
 }
 
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i=0;i<length;i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
+
 void loop() {
   light_check(infrared_light());
   run_fan(Air_humidity());
   temperature = readProbeTemperature();
-  Serial.print("\n============================================\n");
-  Serial.print("Humidity: "); Serial.print(Air_humidity()); Serial.print("%\n");
-  Serial.print("Air Temperature: "); Serial.print(Air_temperature()); Serial.print("*C\n");
-  Serial.print("Contactless: "); Serial.print(contactless_liquid_level());
-  Serial.print("\nTDS: "); Serial.print(TDS_reading()); Serial.print("ppm\n");
-  Serial.print("EC level: "); Serial.print(EC_reading(),2); Serial.print("mS/cm\n");
-  Serial.print("PH level: ");Serial.print(PH_reading(),2);
-  Serial.print("\nWater temperatre: "); Serial.print(temperature); Serial.print("*C\n");
-  Serial.print("UV level: "); Serial.print(UV_light());
-  Serial.print("\nInfrared level: ") ;Serial.print(infrared_light());
-  Serial.print("\nVisible light(lux): "); Serial.print(visible_light());
-  Serial.print("\nReservior level: "); Serial.print(reservior_level());
+
+  if (!mqttClient.connected()) {
+    reconnect();
+  }
+  mqttClient.loop();
+
+  mqttClient.subscribe("HYD-1/sensor_data");
+
+  sensor_data["Air_Humidity"] = Air_humidity();
+  sensor_data["Air Temperature"] = Air_temperature();
+  sensor_data["contactless_liquid_level"] = contactless_liquid_level();
+  sensor_data["TDS_reading"] = TDS_reading();
+  sensor_data["EC_reading"] = EC_reading();
+  sensor_data["PH_reading"] = PH_reading();
+  sensor_data["water_temp"] = temperature;
+  sensor_data["UV_light"] = UV_light();
+  sensor_data["infrared_light"] = infrared_light();
+  sensor_data["visible_light"] = visible_light();
+  sensor_data["reservior_level"] = reservior_level();
+
+  serializeJson(sensor_data, Serial);
+  serializeJsonPretty(sensor_data, Serial);
+  char buffer[256];
+  serializeJson(sensor_data, buffer);
+  mqttClient.publish("HYD-1/sensor_data", buffer);
+
+  // temperature = readProbeTemperature();
+  // Serial.print("\n============================================\n");
+  // Serial.print("Humidity: "); Serial.print(Air_humidity()); Serial.print("%\n");
+  // Serial.print("Air Temperature: "); Serial.print(Air_temperature()); Serial.print("*C\n");
+  // Serial.print("Contactless: "); Serial.print(contactless_liquid_level());
+  // Serial.print("\nTDS: "); Serial.print(TDS_reading()); Serial.print("ppm\n");
+  // Serial.print("EC level: "); Serial.print(EC_reading(),2); Serial.print("mS/cm\n");
+  // Serial.print("PH level: ");Serial.print(PH_reading(),2);
+  // Serial.print("\nWater temperatre: "); Serial.print(temperature); Serial.print("*C\n");
+  // Serial.print("UV level: "); Serial.print(UV_light());
+  // Serial.print("\nInfrared level: ") ;Serial.print(infrared_light());
+  // Serial.print("\nVisible light(lux): "); Serial.print(visible_light());
+  // Serial.print("\nReservior level: "); Serial.print(reservior_level());
   delay(5000);
 }
