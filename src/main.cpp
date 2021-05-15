@@ -237,9 +237,9 @@ void loop() {
   char buffer[256];
   // mqttClient.subscribe(topic_sensor_data);
   mqttClient.subscribe(topic_commands);
-  mqttClient.setCallback(callback);
+  mqttClient.setCallback(callback); //waiting for MQTT commands
 
-  if(mqttCurrentMillis - mqttPreviousMillis > mqttInterval){  
+  if(mqttCurrentMillis - mqttPreviousMillis > mqttInterval){  //will send sensor data every 5 sec
     sensor_data["Air_Humidity"] = Air_humidity();
     sensor_data["Air Temperature"] = Air_temperature();
     sensor_data["water_temp"] = readProbeTemperature();
@@ -258,7 +258,7 @@ void loop() {
     mqttPreviousMillis = mqttCurrentMillis;
   }
 
-  if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){
+  if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){ //will turn on or off the reservoir water pump every 30sec
     if(digitalRead(RELAY_PIN8) == HIGH){
       digitalWrite(RELAY_PIN8, LOW);
     }
