@@ -1,29 +1,7 @@
 //Arduino framework
 #include <Arduino.h>
 #include "header.h" //Important headers for dependencies
-
-//Pins of Analog sensors
-#define PH_PIN A1           //PH Level Sensor
-#define EC_PIN A2           //EC Level Sensor
-#define TdsSensorPin A3     //TDS sensor
-#define DHTTYPE DHT21       // AM2301 
-
-//Pins of Digital Sensors
-const int Contact_less_sensor = 3;  // Contact less liquid sensor
-#define DHT21PIN 4                  // Humidity and Air temp Sensor
-#define TEMP_SENSOR_PIN 5           // Temperature probe Sensor
-const int Float_Switch_Low = 6;     // Lower float siwtch on reservior
-const int Float_Switch_High = 7;    // Higher float siwtch on reservior
-
-//Relay PINS and Assignment
-// const int RELAY_PIN1 = 22;      //peristaltic pump 5 (right most)
-// const int RELAY_PIN2 = 24;      //peristaltic pump 4
-// const int RELAY_PIN3 = 26;      //peristaltic pump 3
-// const int RELAY_PIN4 = 28;      //peristaltic pump 2
-// const int RELAY_PIN5 = 30;      //peristaltic pump 1 (left most)
-const int RELAY_PIN6 = 32;      //Fan
-const int RELAY_PIN7 = 34;      //Grow light
-// const int RELAY_PIN8 = 36;      //Water pump
+#include "pin_constants.h" //header for pin assignment constants
 
 //Sensor Initialization
 DFRobot_PH ph;
@@ -112,7 +90,7 @@ void reconnect() {
 }
 
 bool contactless_liquid_level(){
-  liqsenseor=digitalRead(Contact_less_sensor);
+  liqsenseor = digitalRead(Contact_less_sensor);
 
   if (liqsenseor == HIGH) { 
     return true;
@@ -238,29 +216,33 @@ void loop() {
   light_check(infrared_light());
   run_fan(Air_humidity());
   temperature = readProbeTemperature();
+  phValue = PH_reading();
+  ecValue = EC_reading();
+  tdsValue = TDS_reading();
+  liqsenseor = contactless_liquid_level();
 
   if (!mqttClient.connected()) {
     reconnect();
   }
   mqttClient.loop();
 
+  char buffer[256];
   mqttClient.subscribe("HYD-1/sensor_data");
+  mqttClient.subscribe("HYD-1/commands");
 
   sensor_data["Air_Humidity"] = Air_humidity();
   sensor_data["Air Temperature"] = Air_temperature();
-  sensor_data["contactless_liquid_level"] = contactless_liquid_level();
-  sensor_data["TDS_reading"] = TDS_reading();
-  sensor_data["EC_reading"] = EC_reading();
-  sensor_data["PH_reading"] = PH_reading();
+  sensor_data["contactless_liquid_level"] = liqsenseor;
+  sensor_data["TDS_reading"] = tdsValue;
+  sensor_data["EC_reading"] = ecValue;
+  sensor_data["PH_reading"] = phValue;
   sensor_data["water_temp"] = temperature;
   sensor_data["UV_light"] = UV_light();
   sensor_data["infrared_light"] = infrared_light();
   sensor_data["visible_light"] = visible_light();
   sensor_data["reservoir_level"] = reservoir_level();
 
-  serializeJson(sensor_data, Serial);
-  serializeJsonPretty(sensor_data, Serial);
-  char buffer[256];
+  // serializeJsonPretty(sensor_data, Serial);
   serializeJson(sensor_data, buffer);
   mqttClient.publish("HYD-1/sensor_data", buffer);
 
