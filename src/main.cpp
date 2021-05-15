@@ -21,6 +21,13 @@ float temperature;
 float tdsValue = 0;
 int liqsenseor = 0;
 
+unsigned long mqttPreviousMillis = 0; // last time update
+long mqttInterval = 5000; // mqttInterval at which to do something (milliseconds)
+
+//pump 1min interval
+unsigned long pumpPreviousMillis = 0; // last time update (water pump)
+long pumpInterval = 30000; // pump Interval at which to do something (milliseconds)
+
 //Ethernet Variable for connecting
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(192, 168, 1, 117);
@@ -28,8 +35,10 @@ IPAddress myDns(192, 168, 1, 4);
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 
-// MQTT server IP
+// MQTT server IP and topic subscription
 const char* server = "192.168.1.65";
+const char* topic_sensor_data = "HYD-1/sensor_data";
+const char* topic_commands = "HYD-1/commands";
 
 // Ethernet and MQTT related objects
 EthernetClient ethClient;
@@ -47,6 +56,8 @@ void setup() {
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
   pinMode(Contact_less_sensor,INPUT);
+  pinMode(RELAY_PIN8, OUTPUT);
+  digitalWrite(RELAY_PIN8, HIGH);
   pinMode(RELAY_PIN7, OUTPUT);
   pinMode(RELAY_PIN6, OUTPUT);
 
@@ -140,18 +151,18 @@ float readProbeTemperature(){
 }
 
 float PH_reading() {
-    static unsigned long timepoint = millis();
-    if(millis()-timepoint>1000U){                  //time interval: 1s
-        timepoint = millis();
-        phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
-        phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
-        return (phValue);
-    }   
+  static unsigned long timepoint = millis();
+  if(millis()-timepoint>1000U){                  //time mqttInterval: 1s
+      timepoint = millis();
+      phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
+      phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
+      return (phValue);
+  }   
 }
 
 float EC_reading(){
   static unsigned long timepoint = millis();
-    if(millis()-timepoint>1000U)  //time interval: 1s
+    if(millis()-timepoint>1000U)  //time mqttInterval: 1s
     {
       timepoint = millis();
       ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
@@ -213,13 +224,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void loop() {
+  unsigned long mqttCurrentMillis = millis();
+  unsigned long pumpCurrentMillis = millis();
   light_check(infrared_light());
   run_fan(Air_humidity());
-  temperature = readProbeTemperature();
-  phValue = PH_reading();
-  ecValue = EC_reading();
-  tdsValue = TDS_reading();
-  liqsenseor = contactless_liquid_level();
 
   if (!mqttClient.connected()) {
     reconnect();
@@ -227,37 +235,36 @@ void loop() {
   mqttClient.loop();
 
   char buffer[256];
-  mqttClient.subscribe("HYD-1/sensor_data");
-  mqttClient.subscribe("HYD-1/commands");
+  // mqttClient.subscribe(topic_sensor_data);
+  mqttClient.subscribe(topic_commands);
+  mqttClient.setCallback(callback);
 
-  sensor_data["Air_Humidity"] = Air_humidity();
-  sensor_data["Air Temperature"] = Air_temperature();
-  sensor_data["contactless_liquid_level"] = liqsenseor;
-  sensor_data["TDS_reading"] = tdsValue;
-  sensor_data["EC_reading"] = ecValue;
-  sensor_data["PH_reading"] = phValue;
-  sensor_data["water_temp"] = temperature;
-  sensor_data["UV_light"] = UV_light();
-  sensor_data["infrared_light"] = infrared_light();
-  sensor_data["visible_light"] = visible_light();
-  sensor_data["reservoir_level"] = reservoir_level();
+  if(mqttCurrentMillis - mqttPreviousMillis > mqttInterval){  
+    sensor_data["Air_Humidity"] = Air_humidity();
+    sensor_data["Air Temperature"] = Air_temperature();
+    sensor_data["water_temp"] = readProbeTemperature();
+    sensor_data["contactless_liquid_level"] = contactless_liquid_level();
+    sensor_data["TDS_reading"] = TDS_reading();;
+    sensor_data["EC_reading"] = EC_reading();
+    sensor_data["PH_reading"] = PH_reading();
+    sensor_data["UV_light"] = UV_light();
+    sensor_data["infrared_light"] = infrared_light();
+    sensor_data["visible_light"] = visible_light();
+    sensor_data["reservoir_level"] = reservoir_level();
 
-  // serializeJsonPretty(sensor_data, Serial);
-  serializeJson(sensor_data, buffer);
-  mqttClient.publish("HYD-1/sensor_data", buffer);
+    // serializeJsonPretty(sensor_data, Serial);
+    serializeJson(sensor_data, buffer);
+    mqttClient.publish("HYD-1/sensor_data", buffer);
+    mqttPreviousMillis = mqttCurrentMillis;
+  }
 
-  // temperature = readProbeTemperature();
-  // Serial.print("\n============================================\n");
-  // Serial.print("Humidity: "); Serial.print(Air_humidity()); Serial.print("%\n");
-  // Serial.print("Air Temperature: "); Serial.print(Air_temperature()); Serial.print("*C\n");
-  // Serial.print("Contactless: "); Serial.print(contactless_liquid_level());
-  // Serial.print("\nTDS: "); Serial.print(TDS_reading()); Serial.print("ppm\n");
-  // Serial.print("EC level: "); Serial.print(EC_reading(),2); Serial.print("mS/cm\n");
-  // Serial.print("PH level: ");Serial.print(PH_reading(),2);
-  // Serial.print("\nWater temperatre: "); Serial.print(temperature); Serial.print("*C\n");
-  // Serial.print("UV level: "); Serial.print(UV_light());
-  // Serial.print("\nInfrared level: ") ;Serial.print(infrared_light());
-  // Serial.print("\nVisible light(lux): "); Serial.print(visible_light());
-  // Serial.print("\nReservior level: "); Serial.print(reservior_level());
-  delay(5000);
+  if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){
+    if(digitalRead(RELAY_PIN8) == HIGH){
+      digitalWrite(RELAY_PIN8, LOW);
+    }
+    else if (digitalRead(RELAY_PIN8) == LOW){
+      digitalWrite(RELAY_PIN8, HIGH);
+    }
+    pumpPreviousMillis = pumpCurrentMillis;
+  }
 }

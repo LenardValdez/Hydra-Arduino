@@ -19,4 +19,4 @@ const int Float_Switch_High = 7;    // Higher float siwtch on reservior
 // const int RELAY_PIN5 = 30;      //peristaltic pump 1 (left most)
 const int RELAY_PIN6 = 32;      //Fan
 const int RELAY_PIN7 = 34;      //Grow light
-// const int RELAY_PIN8 = 36;      //Water pump
+const int RELAY_PIN8 = 36;      //Water pump
