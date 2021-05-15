@@ -1,21 +1,6 @@
 //Arduino framework
 #include <Arduino.h>
-
-//custom Libraries
-#include "GravityTDS.h"       // Custom TDS library modified for Non Uno boards
-#include "DFRobot_PH.h"       // Custom PH level Library modified for Non Uno boards
-#include "DFRobot_EC.h"       // Custom EC level library modified for Non Uno boards
-
-//Arduino Libraries
-#include <Adafruit_SI1145.h>    //Original UV IR and Visible light Sensor Library
-#include <DHT.h>                //Humidity and air temp sensor library
-#include <DallasTemperature.h>  //Temprature probe sensor library
-#include <Wire.h>
-#include <OneWire.h>
-#include <ArduinoJson.h>
-#include <Ethernet.h>
-#include <PubSubClient.h>
-#include <SPI.h>
+#include "header.h" //Important headers for dependencies
 
 //Pins of Analog sensors
 #define PH_PIN A1           //PH Level Sensor
@@ -79,6 +64,7 @@ void setup() {
   Serial.begin(115200);
 
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
+  mqttClient.setServer(server, 1883);
 
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
