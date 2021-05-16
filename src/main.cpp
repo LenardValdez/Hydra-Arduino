@@ -19,7 +19,6 @@ float ecValue;
 float ecVoltage;
 float temperature;
 float tdsValue = 0;
-int liqsenseor = 0;
 
 unsigned long mqttPreviousMillis = 0; // last time update
 long mqttInterval = 5000; // mqttInterval at which to do something (milliseconds)
@@ -27,6 +26,7 @@ long mqttInterval = 5000; // mqttInterval at which to do something (milliseconds
 //pump 1min interval
 unsigned long pumpPreviousMillis = 0; // last time update (water pump)
 long pumpInterval = 30000; // pump Interval at which to do something (milliseconds)
+millisDelay waterPumpDelay;
 
 //Ethernet Variable for connecting
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -49,6 +49,8 @@ DynamicJsonDocument sensor_data(1024);
 
 void setup() {
   Serial.begin(115200);
+
+  waterPumpDelay.start(30000);// pump Interval at which to do something (milliseconds)
 
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
   mqttClient.setServer(server, 1883);
@@ -101,9 +103,7 @@ void reconnect() {
 }
 
 bool contactless_liquid_level(){
-  liqsenseor = digitalRead(Contact_less_sensor);
-
-  if (liqsenseor == HIGH) { 
+  if ((digitalRead(Contact_less_sensor)) == HIGH) { 
     return true;
   } 
   else { 
@@ -113,16 +113,13 @@ bool contactless_liquid_level(){
 
 String reservoir_level(){
   
-  int floatLow = !digitalRead(Float_Switch_Low);
-  int floatHigh = !digitalRead(Float_Switch_High);
-  
-  if(floatHigh == 1 && floatLow == 0){
+  if((!digitalRead(Float_Switch_High)) == 1 && (!digitalRead(Float_Switch_Low)) == 0){
     return ("100%");
     }
-  else if(floatHigh == 0 && floatLow == 0){
+  else if((!digitalRead(Float_Switch_High)) == 0 && (!digitalRead(Float_Switch_Low)) == 0){
     return ("50%");
     }
-  else if(floatHigh == 0 && floatLow == 1){
+  else if((!digitalRead(Float_Switch_High)) == 0 && (!digitalRead(Float_Switch_Low)) == 1){
     return ("0%");
     }
   else {
@@ -151,24 +148,15 @@ float readProbeTemperature(){
 }
 
 float PH_reading() {
-  static unsigned long timepoint = millis();
-  if(millis()-timepoint>1000U){                  //time mqttInterval: 1s
-      timepoint = millis();
-      phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
-      phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
-      return (phValue);
-  }   
+  phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
+  phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
+  return (phValue);
 }
 
 float EC_reading(){
-  static unsigned long timepoint = millis();
-    if(millis()-timepoint>1000U)  //time mqttInterval: 1s
-    {
-      timepoint = millis();
-      ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
-      ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
-      return (ecValue);
-    }
+  ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
+  ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
+  return (ecValue);
 }
 
 float TDS_reading() {
@@ -213,6 +201,18 @@ float Air_temperature(){
   return (temp);
 }
 
+void waterPumpActuate(){
+  // if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){ //will turn on or off the reservoir water pump every 30sec
+  if(digitalRead(RELAY_PIN8) == HIGH){
+    digitalWrite(RELAY_PIN8, LOW);
+  }
+  else if (digitalRead(RELAY_PIN8) == LOW){
+    digitalWrite(RELAY_PIN8, HIGH);
+  }
+    // pumpPreviousMillis = pumpCurrentMillis;
+  waterPumpDelay.restart();
+}
+
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -254,17 +254,12 @@ void loop() {
 
     // serializeJsonPretty(sensor_data, Serial);
     serializeJson(sensor_data, buffer);
-    mqttClient.publish("HYD-1/sensor_data", buffer);
+    mqttClient.publish(topic_sensor_data, buffer);
     mqttPreviousMillis = mqttCurrentMillis;
   }
 
-  if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){ //will turn on or off the reservoir water pump every 30sec
-    if(digitalRead(RELAY_PIN8) == HIGH){
-      digitalWrite(RELAY_PIN8, LOW);
-    }
-    else if (digitalRead(RELAY_PIN8) == LOW){
-      digitalWrite(RELAY_PIN8, HIGH);
-    }
-    pumpPreviousMillis = pumpCurrentMillis;
+  if(waterPumpDelay.justFinished()){
+    waterPumpActuate();
   }
+
 }
