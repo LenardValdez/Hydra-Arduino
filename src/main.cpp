@@ -1,7 +1,8 @@
 //Arduino framework
-#include <Arduino.h>
-#include "header.h" //Important headers for dependencies
-#include "pin_constants.h" //header for pin assignment constants
+#include <Arduino.h>          // Arduino framework for CPP
+// #include "header.h"           //Important headers for dependencies
+#include "pin_constants.h"    //header for pin assignment constants
+#include "mqttConstants.h"    //for mqtt constants
 
 //Sensor Initialization
 DFRobot_PH ph;
@@ -20,87 +21,16 @@ float ecVoltage;
 float temperature;
 float tdsValue = 0;
 
-unsigned long mqttPreviousMillis = 0; // last time update
-long mqttInterval = 5000; // mqttInterval at which to do something (milliseconds)
-
-//pump 1min interval
-unsigned long pumpPreviousMillis = 0; // last time update (water pump)
-long pumpInterval = 30000; // pump Interval at which to do something (milliseconds)
+//pump interval
 millisDelay waterPumpDelay;
 
-//Ethernet Variable for connecting
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(192, 168, 1, 117);
-IPAddress myDns(192, 168, 1, 4);
-IPAddress gateway(192, 168, 1, 1);
-IPAddress subnet(255, 255, 255, 0);
+//mqtt publish interval
+millisDelay mqttDelay;
 
-// MQTT server IP and topic subscription
-const char* server = "192.168.1.65";
-const char* topic_sensor_data = "HYD-1/sensor_data";
-const char* topic_commands = "HYD-1/commands";
+millisDelay perPump;
 
-// Ethernet and MQTT related objects
-EthernetClient ethClient;
-PubSubClient mqttClient(ethClient);
+millisDelay primeDelay1, primeDelay2, primeDelay3, primeDelay4, primeDelay5;
 
-//sensor data json
-DynamicJsonDocument sensor_data(1024);
-
-void setup() {
-  Serial.begin(115200);
-
-  waterPumpDelay.start(30000);// pump Interval at which to do something (milliseconds)
-
-  Ethernet.begin(mac, ip, myDns, gateway, subnet);
-  mqttClient.setServer(server, 1883);
-
-  pinMode(Float_Switch_Low, INPUT_PULLUP);
-  pinMode(Float_Switch_High, INPUT_PULLUP);
-  pinMode(Contact_less_sensor,INPUT);
-  pinMode(RELAY_PIN8, OUTPUT);
-  digitalWrite(RELAY_PIN8, HIGH);
-  pinMode(RELAY_PIN7, OUTPUT);
-  pinMode(RELAY_PIN6, OUTPUT);
-
-  //TDS setup default params
-  gravityTds.setPin(TdsSensorPin);
-  gravityTds.setAref(3.5);  //reference voltage on ADC, 3.5V on Arduino DUE
-  gravityTds.setAdcRange(1024);  //1024 for 10bit ADC;4096 for 12bit ADC
-
-  ph.begin();           //PH sensor
-  ec.begin();           //EC sensor
-  dht.begin();          //hum&temp sensor
-  probeSensor.begin();  //probe sensor
-  gravityTds.begin();   //TDS sensor
-
-  //Check UV/IR/Vis light sensor readiness for I2C
-  if (! uv.begin(&Wire1)) {
-    Serial.println("Didn't find Si1145");
-    while (1);
-  }
-}
-
-void reconnect() {
-  // Loop until we're reconnected
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (mqttClient.connect("arduinoClient")) {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      mqttClient.publish("outTopic","hello world");
-      // ... and resubscribe
-      mqttClient.subscribe("inTopic");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
-  }
-}
 
 bool contactless_liquid_level(){
   if ((digitalRead(Contact_less_sensor)) == HIGH) { 
@@ -201,6 +131,15 @@ float Air_temperature(){
   return (temp);
 }
 
+void primeTubes() {
+  if(digitalRead(RELAY_PIN1) == HIGH){
+    digitalWrite(RELAY_PIN1, LOW);
+  }
+  else{
+    digitalWrite(RELAY_PIN1, HIGH);
+  }
+}
+
 void waterPumpActuate(){
   // if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){ //will turn on or off the reservoir water pump every 30sec
   if(digitalRead(RELAY_PIN8) == HIGH){
@@ -210,22 +149,95 @@ void waterPumpActuate(){
     digitalWrite(RELAY_PIN8, HIGH);
   }
     // pumpPreviousMillis = pumpCurrentMillis;
-  waterPumpDelay.restart();
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  for (int i=0;i<length;i++) {
-    Serial.print((char)payload[i]);
+  Serial.println("");
+  if(!strcmp(topic, topic_commands)){
+    primeDelay1.start(5574.77049);
+    primeDelay2.start(5469.84572);
+    primeDelay3.start(7619.04761);
+    primeDelay4.start(6142.885714);
+    primeDelay5.start(6507.9365);
+    primeTubes();
+    Serial.print("test");
   }
-  Serial.println();
+}
+
+// Ethernet and MQTT related objects
+EthernetClient ethClient;
+PubSubClient mqttClient(server, 1883, callback, ethClient);
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (mqttClient.connect("HYD-1")) {
+      Serial.println("connected");
+      // ...resubscribe
+      // mqttClient.subscribe(topic_sensor_data);
+      mqttClient.subscribe(topic_commands);
+      // mqttClient.subscribe(connection);
+      // Once connected, publish an announcement...
+      mqttClient.publish(connection,"connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+//sensor data json
+DynamicJsonDocument sensor_data(1024);
+
+void setup() {
+  Serial.begin(115200);
+
+  waterPumpDelay.start(30000);  // pump 30 sec interval
+  mqttDelay.start(5000);        // mqtt 5 sec send delay
+  perPump.start(4923);
+
+  Ethernet.begin(mac, ip, myDns, gateway, subnet);
+  mqttClient.setServer(server, 1883);
+
+  pinMode(Float_Switch_Low, INPUT_PULLUP);
+  pinMode(Float_Switch_High, INPUT_PULLUP);
+  pinMode(Contact_less_sensor,INPUT);
+  pinMode(RELAY_PIN8, OUTPUT);
+  digitalWrite(RELAY_PIN8, HIGH);
+  pinMode(RELAY_PIN7, OUTPUT);
+  digitalWrite(RELAY_PIN7, HIGH);
+  pinMode(RELAY_PIN6, OUTPUT);
+  digitalWrite(RELAY_PIN6, HIGH);
+  pinMode(RELAY_PIN1, OUTPUT);
+  digitalWrite(RELAY_PIN1, HIGH);
+
+  //TDS setup default params
+  gravityTds.setPin(TdsSensorPin);
+  gravityTds.setAref(3.5);  //reference voltage on ADC, 3.5V on Arduino DUE
+  gravityTds.setAdcRange(1024);  //1024 for 10bit ADC;4096 for 12bit ADC
+
+  ph.begin();           //PH sensor
+  ec.begin();           //EC sensor
+  dht.begin();          //hum&temp sensor
+  probeSensor.begin();  //probe sensor
+  gravityTds.begin();   //TDS sensor
+
+  //Check UV/IR/Vis light sensor readiness for I2C
+  if (! uv.begin(&Wire1)) {
+    Serial.println("Didn't find Si1145");
+    while (1);
+  }
 }
 
 void loop() {
-  unsigned long mqttCurrentMillis = millis();
-  unsigned long pumpCurrentMillis = millis();
   light_check(infrared_light());
   run_fan(Air_humidity());
 
@@ -235,11 +247,7 @@ void loop() {
   mqttClient.loop();
 
   char buffer[256];
-  // mqttClient.subscribe(topic_sensor_data);
-  mqttClient.subscribe(topic_commands);
-  mqttClient.setCallback(callback); //waiting for MQTT commands
-
-  if(mqttCurrentMillis - mqttPreviousMillis > mqttInterval){  //will send sensor data every 5 sec
+  if(mqttDelay.justFinished()){
     sensor_data["Air_Humidity"] = Air_humidity();
     sensor_data["Air Temperature"] = Air_temperature();
     sensor_data["water_temp"] = readProbeTemperature();
@@ -255,11 +263,17 @@ void loop() {
     // serializeJsonPretty(sensor_data, Serial);
     serializeJson(sensor_data, buffer);
     mqttClient.publish(topic_sensor_data, buffer);
-    mqttPreviousMillis = mqttCurrentMillis;
+    mqttDelay.restart();
   }
 
-  if(waterPumpDelay.justFinished()){
-    waterPumpActuate();
-  }
+  // if(waterPumpDelay.justFinished()){
+  //   waterPumpActuate();
+  // }
 
+  if(primeDelay1.isRunning()){
+    if(primeDelay1.justFinished()){
+      primeTubes();
+      primeDelay1.restart();
+    }
+  }
 }
