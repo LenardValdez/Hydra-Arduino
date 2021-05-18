@@ -177,8 +177,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("] ");
   Serial.println("");
   if(!strcmp(topic, topic_commands)){
-    primeDelay1.start(5245.9016);
-    primeDelay2.start(5142.8571);
+    primeDelay1.start(40000/7);
+    primeDelay2.start(5625);
     primeDelay3.start(7307.6923);
     primeDelay4.start(5555.5555);
     primeDelay5.start(5735.2941);
@@ -298,7 +298,6 @@ void loop() {
   //   waterPumpActuate();
   // }
 
-//tube primer turn off
   //Ppump turn off
   if(primeDelay1.justFinished()){
     primeTubes(1);
