@@ -144,23 +144,18 @@ void primeTubes(int pump_number){
   {
   case 1:
     digitalWrite(RELAY_PIN1, HIGH);
-    primeDelay1.repeat();
     break;
   case 2:
     digitalWrite(RELAY_PIN2, HIGH);
-    primeDelay2.repeat();
     break;
   case 3:
     digitalWrite(RELAY_PIN3, HIGH);
-    primeDelay3.repeat();
     break;
   case 4:
     digitalWrite(RELAY_PIN4, HIGH);
-    primeDelay4.repeat();
     break;
   case 5:
     digitalWrite(RELAY_PIN5, HIGH);
-    primeDelay5.repeat();
     break;
   default:
     break;
@@ -182,11 +177,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("] ");
   Serial.println("");
   if(!strcmp(topic, topic_commands)){
-    primeDelay1.start(5574.77049);
-    primeDelay2.start(5469.84572);
-    primeDelay3.start(7619.04761);
-    primeDelay4.start(6142.885714);
-    primeDelay5.start(6507.9365);
+    primeDelay1.start(5245.9016);
+    primeDelay2.start(5142.8571);
+    primeDelay3.start(7307.6923);
+    primeDelay4.start(5555.5555);
+    primeDelay5.start(5735.2941);
     primeTubes();
     Serial.print("test");
   }
@@ -304,6 +299,7 @@ void loop() {
   // }
 
 //tube primer turn off
+  //Ppump turn off
   if(primeDelay1.justFinished()){
     primeTubes(1);
   }
