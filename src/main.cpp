@@ -132,23 +132,48 @@ float Air_temperature(){
 }
 
 void primeTubes() {
-  if(digitalRead(RELAY_PIN1) == HIGH){
-    digitalWrite(RELAY_PIN1, LOW);
-  }
-  else{
+  digitalWrite(RELAY_PIN1, LOW);
+  digitalWrite(RELAY_PIN2, LOW);
+  digitalWrite(RELAY_PIN3, LOW);
+  digitalWrite(RELAY_PIN4, LOW);
+  digitalWrite(RELAY_PIN5, LOW);
+}
+
+void primeTubes(int pump_number){
+  switch (pump_number)
+  {
+  case 1:
     digitalWrite(RELAY_PIN1, HIGH);
+    primeDelay1.repeat();
+    break;
+  case 2:
+    digitalWrite(RELAY_PIN2, HIGH);
+    primeDelay2.repeat();
+    break;
+  case 3:
+    digitalWrite(RELAY_PIN3, HIGH);
+    primeDelay3.repeat();
+    break;
+  case 4:
+    digitalWrite(RELAY_PIN4, HIGH);
+    primeDelay4.repeat();
+    break;
+  case 5:
+    digitalWrite(RELAY_PIN5, HIGH);
+    primeDelay5.repeat();
+    break;
+  default:
+    break;
   }
 }
 
 void waterPumpActuate(){
-  // if(pumpCurrentMillis - pumpPreviousMillis > pumpInterval){ //will turn on or off the reservoir water pump every 30sec
   if(digitalRead(RELAY_PIN8) == HIGH){
     digitalWrite(RELAY_PIN8, LOW);
   }
   else if (digitalRead(RELAY_PIN8) == LOW){
     digitalWrite(RELAY_PIN8, HIGH);
   }
-    // pumpPreviousMillis = pumpCurrentMillis;
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -216,6 +241,14 @@ void setup() {
   digitalWrite(RELAY_PIN7, HIGH);
   pinMode(RELAY_PIN6, OUTPUT);
   digitalWrite(RELAY_PIN6, HIGH);
+  pinMode(RELAY_PIN5, OUTPUT);
+  digitalWrite(RELAY_PIN5, HIGH);
+  pinMode(RELAY_PIN4, OUTPUT);
+  digitalWrite(RELAY_PIN4, HIGH);
+  pinMode(RELAY_PIN3, OUTPUT);
+  digitalWrite(RELAY_PIN3, HIGH);
+  pinMode(RELAY_PIN2, OUTPUT);
+  digitalWrite(RELAY_PIN2, HIGH);
   pinMode(RELAY_PIN1, OUTPUT);
   digitalWrite(RELAY_PIN1, HIGH);
 
@@ -270,10 +303,20 @@ void loop() {
   //   waterPumpActuate();
   // }
 
-  if(primeDelay1.isRunning()){
-    if(primeDelay1.justFinished()){
-      primeTubes();
-      primeDelay1.restart();
-    }
+//tube primer turn off
+  if(primeDelay1.justFinished()){
+    primeTubes(1);
+  }
+  if (primeDelay2.justFinished()){
+    primeTubes(2);
+  }
+  if (primeDelay3.justFinished()){
+    primeTubes(3);
+  }
+  if (primeDelay4.justFinished()){
+    primeTubes(4);
+  }
+  if (primeDelay5.justFinished()){
+    primeTubes(5);
   }
 }
