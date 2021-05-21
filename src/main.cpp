@@ -18,8 +18,8 @@ float phValue;
 float phVoltage;
 float ecValue;
 float ecVoltage;
-float temperature;
 float tdsValue = 0;
+int liqsenseor = 0;
 
 //pump interval
 millisDelay waterPumpDelay;
@@ -27,109 +27,7 @@ millisDelay waterPumpDelay;
 //mqtt publish interval
 millisDelay mqttDelay;
 
-millisDelay perPump;
-
 millisDelay primeDelay1, primeDelay2, primeDelay3, primeDelay4, primeDelay5;
-
-
-bool contactless_liquid_level(){
-  if ((digitalRead(Contact_less_sensor)) == HIGH) { 
-    return true;
-  } 
-  else { 
-    return false;
-  }
-}
-
-String reservoir_level(){
-  
-  if((!digitalRead(Float_Switch_High)) == 1 && (!digitalRead(Float_Switch_Low)) == 0){
-    return ("100%");
-    }
-  else if((!digitalRead(Float_Switch_High)) == 0 && (!digitalRead(Float_Switch_Low)) == 0){
-    return ("50%");
-    }
-  else if((!digitalRead(Float_Switch_High)) == 0 && (!digitalRead(Float_Switch_Low)) == 1){
-    return ("0%");
-    }
-  else {
-    return ("Float sensors might be stuck");
-   }
-}
-
-int visible_light() {
-  return (uv.readVisible());
-}
-
-int infrared_light(){
-  return (uv.readIR());
-}
-
-float UV_light() {
-  float UVindex = uv.readUV();
-  UVindex /= 100.0;
-  return (UVindex);
-}
-
-float readProbeTemperature(){
-  probeSensor.requestTemperatures();
-  float tempC = probeSensor.getTempCByIndex(0);
-  return (tempC);
-}
-
-float PH_reading() {
-  phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
-  phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
-  return (phValue);
-}
-
-float EC_reading(){
-  ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
-  ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
-  return (ecValue);
-}
-
-float TDS_reading() {
-  gravityTds.setTemperature(temperature);       // set the temperature and execute temperature compensation
-  gravityTds.update();                          //sample and calculate 
-  tdsValue = gravityTds.getTdsValue();          // then get the value
-  return (tdsValue);
-}
-
-void light_check(int ir_value){
-  if(ir_value < 300){
-    digitalWrite(RELAY_PIN7, LOW);
-  } else {
-    digitalWrite(RELAY_PIN7, HIGH);
-  }
-  delay(1000);
-}
-
-void run_fan(float hum_value) {
-  if(hum_value > 70){
-    digitalWrite(RELAY_PIN6, LOW);
-  } else {
-    digitalWrite(RELAY_PIN6, HIGH);
-  }
-}
-
-float Air_humidity() {
-  float hum = dht.readHumidity();
-  if (isnan(hum)) 
-  {
-    Serial.println("Failed to read from DHT");
-  }
-  return (hum);
-}
-
-float Air_temperature(){
-  float temp = dht.readTemperature();
-  if (isnan(temp)) 
-  {
-    Serial.println("Failed to read from DHT");
-  }
-  return (temp);
-}
 
 void primeTubes() {
   digitalWrite(RELAY_PIN1, LOW);
@@ -222,7 +120,6 @@ void setup() {
 
   waterPumpDelay.start(30000);  // pump 30 sec interval
   mqttDelay.start(5000);        // mqtt 5 sec send delay
-  perPump.start(4923);
 
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
   mqttClient.setServer(server, 1883);
@@ -265,6 +162,144 @@ void setup() {
   }
 }
 
+bool contactless_liquid_level(){
+  liqsenseor=digitalRead(Contact_less_sensor);
+    if (liqsenseor==HIGH) { 
+      return true;
+//      Serial.println("Water level is detected");
+    } 
+    else { 
+      return false;
+//      Serial.println("No water"); 
+    }
+}
+
+String reservoir_level(){
+  
+  int floatLow = !digitalRead(Float_Switch_Low);
+  int floatHigh = !digitalRead(Float_Switch_High);
+  
+  if(floatHigh == 1 && floatLow == 0){
+    return ("100%");
+//    Serial.println(floatHigh);
+//    Serial.println(floatLow);
+//    Serial.println("100%");
+    }
+  else if(floatHigh == 0 && floatLow == 0){
+    return ("50%");
+//    Serial.println(floatHigh);
+//    Serial.println(floatLow);
+//    Serial.println("50%");
+    }
+  else if(floatHigh == 0 && floatLow == 1){
+    return ("0%");
+//    Serial.println(floatHigh);
+//    Serial.println(floatLow);
+//    Serial.println("0%");
+    }
+  else {
+    return ("Float sensors might be stuck");
+   }
+}
+
+int visible_light() {
+  return (uv.readVisible());
+}
+
+int infrared_light(){
+  return (uv.readIR());
+}
+
+float UV_light() {
+  float UVindex = uv.readUV();
+  UVindex /= 100.0;
+  return (UVindex);
+}
+
+float readProbeTemperature(){
+  probeSensor.requestTemperatures();
+  float tempC = probeSensor.getTempCByIndex(0);
+  return (tempC);
+}
+
+float PH_reading() {
+  float temperature;
+  static unsigned long timepoint = millis();
+  if(millis()-timepoint>1000U){                  //time interval: 1s
+      timepoint = millis();
+      temperature = readProbeTemperature();      // read your temperature sensor to execute temperature compensation
+      phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
+      phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
+      return (phValue);
+//        Serial.print("temperature:");
+//        Serial.print(temperature,1);
+//        Serial.print("^C  pH:");
+//        Serial.println(phValue,2);
+  }   
+}
+
+float EC_reading(){
+  static unsigned long timepoint = millis();
+  float temperature;
+    if(millis()-timepoint>1000U)  //time interval: 1s
+    {
+      timepoint = millis();
+      ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
+      temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
+      ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
+      return (ecValue);
+//      Serial.print("^C  EC:");
+//      Serial.print(ecValue,4);
+//      Serial.println("ms/cm");
+    }
+}
+
+float TDS_reading() {
+  float temperature;
+  temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
+  gravityTds.setTemperature(temperature);       // set the temperature and execute temperature compensation
+  gravityTds.update();                          //sample and calculate 
+  tdsValue = gravityTds.getTdsValue();          // then get the value
+  return (tdsValue);
+//  Serial.print(tdsValue,4);
+//  Serial.println("ppm");
+}
+
+void light_check(int ir_value){
+  if(ir_value < 300){
+    digitalWrite(RELAY_PIN7, LOW);
+  } else {
+    digitalWrite(RELAY_PIN7, HIGH);
+  }
+  delay(1000);
+}
+
+void run_fan(float hum_value) {
+  if(hum_value > 70){
+    digitalWrite(RELAY_PIN6, LOW);
+  } else {
+    digitalWrite(RELAY_PIN6, HIGH);
+  }
+}
+
+float Air_humidity() {
+  float hum = dht.readHumidity();
+  if (isnan(hum)) 
+  {
+    Serial.println("Failed to read from DHT");
+  }
+  return (hum);
+}
+
+float Air_temperature(){
+  float temp = dht.readTemperature();
+  if (isnan(temp)) 
+  {
+    Serial.println("Failed to read from DHT");
+  }
+  return (temp);
+}
+
 void loop() {
   light_check(infrared_light());
   run_fan(Air_humidity());
@@ -291,7 +326,7 @@ void loop() {
     // serializeJsonPretty(sensor_data, Serial);
     serializeJson(sensor_data, buffer);
     mqttClient.publish(topic_sensor_data, buffer);
-    mqttDelay.restart();
+    mqttDelay.repeat();
   }
 
   // if(waterPumpDelay.justFinished()){
