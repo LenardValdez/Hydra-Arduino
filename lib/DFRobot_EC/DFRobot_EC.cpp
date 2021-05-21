@@ -33,7 +33,7 @@ DFRobot_EC::~DFRobot_EC()
 void DFRobot_EC::begin() {
     this->_kvalueLow = 1.0;                       // For new EEPROM, write default value( K = 1.0) to EEPROM
     this->_kvalueHigh = 1.0;                      // For new EEPROM, write default value( K = 1.0) to EEPROM
-    this->_kvalue =  this->_kvalueLow;                // set default K value: K = kvalueLow
+    this->_kvalue =  this->_kvalueLow;            // set default K value: K = kvalueLow
 }
 
 float DFRobot_EC::readEC(float voltage, float temperature) {
