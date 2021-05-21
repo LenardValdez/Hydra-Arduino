@@ -9,6 +9,7 @@ IPAddress subnet(255, 255, 255, 0);
 
 // MQTT server IP and topic subscription
 const char* server = "192.168.1.65";
-const char* topic_sensor_data = "HYD-1/sensor_data";
-const char* topic_commands = "HYD-1/commands";
-const char* connection = "HYD-1/Connection";
+const char* topic_sensor_data = "HYD-1/sensor_data/";
+const char* topic_probe_data = "HYD-1/probe_data/";
+const char* topic_commands = "HYD-1/commands/";
+const char* connection = "HYD-1/Connection/";
