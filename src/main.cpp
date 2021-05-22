@@ -19,10 +19,10 @@ millisDelay waterPumpDelay;
 //mqtt publish interval
 millisDelay mqttDelay;
 
+// priming delay inits
 millisDelay primeDelay1, primeDelay2, primeDelay3, primeDelay4, primeDelay5;
 
 //Global vars
-int sensorValue = 0;
 
 void actuatePeristaltic() {
   digitalWrite(RELAY_PIN1, LOW);
@@ -78,9 +78,22 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print("] ");
   Serial.println("");
-  if(!strcmp(topic, topic_commands)){
+
+  //if primetube command is recieved
+  if(!strcmp(topic, topic_init_pumps)){
+    char command_value[0];
+    command_value[0] = (char)payload[0];
+    if (command_value[0] == '1'){
     primePumps();
+    }
   }
+
+  /*To do:
+  make routine for te following:
+  1.) other specific commands
+  2.) initialize plant/crop
+  3.) harvest command
+  */
 }
 
 // Ethernet and MQTT related objects
@@ -261,7 +274,7 @@ float TDS_reading() {
   if(millis()-timepoint>1000U)  //time interval: 1s
   {
     timepoint = millis();
-    sensorValue = analogRead(TdsSensorPin);
+    int sensorValue = analogRead(TdsSensorPin);
     Voltage = sensorValue*3.5/1024.0; //Convert analog reading to Voltage
     tdsValue=(133.42/Voltage*Voltage*Voltage - 255.86*Voltage*Voltage + 857.39*Voltage)*0.5; //Convert voltage value to TDS value
     return (tdsValue);

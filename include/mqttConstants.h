@@ -12,4 +12,5 @@ const char* server = "192.168.1.65";
 const char* topic_sensor_data = "HYD-1/sensor_data/";
 const char* topic_probe_data = "HYD-1/probe_data/";
 const char* topic_commands = "HYD-1/commands/";
+const char* topic_init_pumps = "HYD-1/commands/init_pumps/";
 const char* connection = "HYD-1/Connection/";
