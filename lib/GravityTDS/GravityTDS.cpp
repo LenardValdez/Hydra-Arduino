@@ -60,7 +60,7 @@ float GravityTDS::getKvalue()
 	return this->kValue;
 }
 
-void GravityTDS::update()
+void GravityTDS::	update()
 {
 	this->analogValue = analogRead(this->pin);
 	this->voltage = this->analogValue/this->adcRange*this->aref;
