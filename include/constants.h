@@ -1,7 +1,7 @@
 //init indication
 bool initialized = false;
 
-//Global vars
+//Global vars   
 
 //tolerance variables
 int air_humidity_min;

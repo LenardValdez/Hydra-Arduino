@@ -18,4 +18,4 @@ const char* change_value_air_hum = "hyd-1/commands/air_humidity";
 const char* change_value_air_temp = "hyd-1/commands/air_temperature";
 const char* topic_init_pumps = "hyd-1/commands/init_pumps";
 const char* harvest_command = "hyd-1/commands/init_pumps/harvest";
-const char* connection = "hyd-1/Connection/";
+const char* connection = "hyd-1/connection/";
