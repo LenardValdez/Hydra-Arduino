@@ -1,6 +1,6 @@
 //init indication
 bool initialized = false;
-
+// bool init_again = true;
 //Global vars   
 
 struct constants

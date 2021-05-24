@@ -21,6 +21,7 @@ millisDelay mqttDelay;
 // peristaltic pumps delay inits
 millisDelay phUPDelay, phDOWNDelay, nutrientCDelay, nutrientBDelay, nutrientADelay;
 
+//routine check for EC and PH level
 millisDelay phRoutineDelay, ecRoutineDelay;
 
 //turn on and off peristaltic pump based on string "on" or "off" and the pump number
@@ -82,19 +83,6 @@ void waterPumpActuate(){
   }
 }
 
-void primePumps() {
-  phUPDelay.start(40000/7);
-  actuatePeristaltic("on", 1);
-  phDOWNDelay.start(5625);
-  actuatePeristaltic("on", 2);
-  nutrientCDelay.start(7307.6923);
-  actuatePeristaltic("on", 3);
-  nutrientBDelay.start(5555.5555);
-  actuatePeristaltic("on", 4);
-  nutrientADelay.start(5735.2941);
-  actuatePeristaltic("on", 5);
-}
-
 void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLength) {
 
   DeserializationError error = deserializeJson(doc, payload, inputLength);
@@ -105,6 +93,7 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
     return;
   }
 
+  //naming is to be implemented
   // const char* pod_name = doc["pod_name"]; // "hyd-1"
   tolerance.air_humidity_min = doc["air_humidity"][0];
   tolerance.air_humidity_max = doc["air_humidity"][1];
@@ -118,12 +107,32 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
   tolerance.ph_reading_min = doc["ph_reading"][0];
   tolerance.ph_reading_max = doc["ph_reading"][1];
 
+  if(doc["prime_tubes"] == true){
+    phUPDelay.start(40000/7);
+    actuatePeristaltic("on", 1);
+    phDOWNDelay.start(5625);
+    actuatePeristaltic("on", 2);
+    nutrientCDelay.start(395000/13);
+    actuatePeristaltic("on", 3);
+    nutrientBDelay.start(200000/9);
+    actuatePeristaltic("on", 4);
+    nutrientADelay.start(397500/17);
+    actuatePeristaltic("on", 5);
+  }
+  if(doc["prime_tubes"] == false){
+    nutrientCDelay.start(((2500/13)*10)*12);
+    actuatePeristaltic("on", 3);
+    nutrientBDelay.start(((1250/9)*10)*12);
+    actuatePeristaltic("on", 4);
+    nutrientADelay.start(((2500/17)*10)*12);
+    actuatePeristaltic("on", 5);
+  }
+
   mqttClient.subscribe(change_value_ph);
   mqttClient.subscribe(change_value_ec);
   mqttClient.subscribe(change_value_air_hum);
   mqttClient.subscribe(change_value_air_temp);
   mqttClient.subscribe(harvest_command);
-  mqttClient.subscribe(topic_init_pumps);
   mqttClient.unsubscribe(command_new_crop);
   initialized = true;
 }
@@ -184,24 +193,20 @@ void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLe
   tolerance.air_temperature_max = doc["air_temperature"][1];
 }
 
-/* TODO:
-    1.) initial 12mL for each nutrient and PH buffer
-*/
-
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
   Serial.println("");
 
-  //newcrop callback routine
+  //newcrop callback routine makes a defaul
   if(!initialized){
     if(!strcmp(topic, command_new_crop)){
       StaticJsonDocument<256> doc;
       newCrop(doc, payload, length);
     }
   }
-  //change value callback routines
+  //change value callback routines for change value after initialization
   if(initialized){
     if(!strcmp(topic, change_value_ph)){
       StaticJsonDocument<48> doc;
@@ -221,26 +226,29 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }
   }
 
-  //if primetube command is recieved
-  if(!strcmp(topic, topic_init_pumps)){
-    StaticJsonDocument<16> doc;
-    deserializeJson(doc, payload, length);
-    if(!strcmp("1", doc["init_pump"])){
-      primePumps();
-    }
-  }
-
   // if harvest command is recieved
   if(!strcmp(topic, harvest_command)){
     StaticJsonDocument<16> doc;
     deserializeJson(doc, payload, length);
-    if(!strcmp("1", doc["harvest"])){
+    if(doc["harvest"] == 1){
+      // reset initialized state
       initialized = false;
+      //turn all 12v relay connection
+      digitalWrite(RELAY_PIN8, HIGH);
+      digitalWrite(RELAY_PIN7, HIGH);
+      digitalWrite(RELAY_PIN6, HIGH);
+      digitalWrite(RELAY_PIN5, HIGH);
+      digitalWrite(RELAY_PIN4, HIGH);
+      digitalWrite(RELAY_PIN3, HIGH);
+      digitalWrite(RELAY_PIN2, HIGH);
+      digitalWrite(RELAY_PIN1, HIGH);
+      // unsubscribe to all commands except new_crop
+      mqttClient.unsubscribe(harvest_command);
       mqttClient.unsubscribe(change_value_ph);
       mqttClient.unsubscribe(change_value_ec);
       mqttClient.unsubscribe(change_value_air_hum);
       mqttClient.unsubscribe(change_value_air_temp);
-      mqttClient.unsubscribe(topic_init_pumps);
+      //resubscribe to newcrop command
       mqttClient.subscribe(command_new_crop);
     }
   }
@@ -251,8 +259,8 @@ void setup() {
 
   waterPumpDelay.start(30000);    // pump 30 sec interval
   mqttDelay.start(5000);          // mqtt 5 sec send delay
-  phRoutineDelay.start(1800000);  //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(1800000);  //ec routine for pumping nutrients
+  phRoutineDelay.start(900000);   //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(900000);   //ec routine for pumping nutrients
 
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
@@ -375,7 +383,7 @@ float ph_reading() {
   float phValue;
   float phVoltage;
   float temperature;
-  temperature = water_temperature();      // read your temperature sensor to execute temperature compensation
+  temperature = water_temperature();           // read your temperature sensor to execute temperature compensation
   phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
   phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
   return (phValue);
@@ -386,7 +394,7 @@ float ec_reading(){
   float ecValue;
   float ecVoltage;
   ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
-  temperature = water_temperature();         // read your temperature sensor to execute temperature compensation
+  temperature = water_temperature();            // read your temperature sensor to execute temperature compensation
   ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
   return (ecValue);
 }
@@ -438,13 +446,10 @@ void ecCheck() {
   float ec_value = ec_reading();
   if(tolerance.ec_reading_min > ec_value){
     nutrientCDelay.start((2500/13)*10);
-    Serial.print("pump 3 on!"); //debugging note
     actuatePeristaltic("on", 3);
     nutrientBDelay.start((1250/9)*10);
-    Serial.print("pump 4 on!"); //debugging note
     actuatePeristaltic("on", 4);
     nutrientADelay.start((2500/17)*10);
-    Serial.print("pump 5 on!"); //debugging note
     actuatePeristaltic("on", 5);
   }
 }
