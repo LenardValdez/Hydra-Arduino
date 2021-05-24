@@ -1,6 +1,5 @@
 //Arduino framework
 #include <Arduino.h>          // Arduino framework for CPP
-// #include "header.h"           //Important headers for dependencies
 #include "pin_constants.h"    //header for pin assignment constants
 #include "mqttConstants.h"    //for mqtt constants
 #include "constants.h"
@@ -108,23 +107,23 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
   }
 
   // const char* pod_name = doc["pod_name"]; // "hyd-1"
+  tolerance.air_humidity_min = doc["air_humidity"][0];
+  tolerance.air_humidity_max = doc["air_humidity"][1];
 
-  air_humidity_min = doc["air_humidity"][0];
-  air_humidity_max = doc["air_humidity"][1];
+  tolerance.air_temperature_min = doc["air_temperature"][0];
+  tolerance.air_temperature_max = doc["air_temperature"][1];
 
-  air_temperature_min = doc["air_temperature"][0];
-  air_temperature_max = doc["air_temperature"][1];
+  tolerance.ec_reading_min = doc["ec_reading"][0];
+  tolerance.ec_reading_max = doc["ec_reading"][1];
 
-  ec_reading_min = doc["ec_reading"][0];
-  ec_reading_max = doc["ec_reading"][1];
+  tolerance.ph_reading_min = doc["ph_reading"][0];
+  tolerance.ph_reading_max = doc["ph_reading"][1];
 
-  ph_reading_min = doc["ph_reading"][0];
-  ph_reading_max = doc["ph_reading"][1];
-
-  waterPumpDelay.start(30000);    // pump 30 sec interval
-  mqttDelay.start(5000);          // mqtt 5 sec send delay
-  phRoutineDelay.start(1800000);  //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(1800000);  //ec routine for pumping nutrients
+  mqttClient.subscribe(change_value_ph);
+  mqttClient.subscribe(change_value_ec);
+  mqttClient.subscribe(change_value_air_hum);
+  mqttClient.subscribe(change_value_air_temp);
+  mqttClient.unsubscribe(command_new_crop);
   initialized = true;
 }
 
@@ -138,8 +137,8 @@ void changePH(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLeng
     return;
   }
 
-  ph_reading_min = doc["ph_reading"][0];
-  ph_reading_max = doc["ph_reading"][1];
+  tolerance.ph_reading_min = doc["ph_reading"][0];
+  tolerance.ph_reading_max = doc["ph_reading"][1];
 }
 
 void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
@@ -152,8 +151,8 @@ void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLeng
     return;
   }
 
-  ec_reading_min = doc["ec_reading"][0];
-  ec_reading_max = doc["ec_reading"][1]; 
+  tolerance.ec_reading_min = doc["ec_reading"][0];
+  tolerance.ec_reading_max = doc["ec_reading"][1]; 
 }
 
 void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
@@ -166,8 +165,8 @@ void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLen
     return;
   }
 
-  air_humidity_min = doc["air_humidity"][0];
-  air_humidity_max = doc["air_humidity"][1];
+  tolerance.air_humidity_min = doc["air_humidity"][0];
+  tolerance.air_humidity_max = doc["air_humidity"][1];
 }
 
 void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
@@ -180,13 +179,12 @@ void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLe
     return;
   }
 
-  air_humidity_min = doc["air_humidity"][0];
-  air_humidity_max = doc["air_humidity"][1];
+  tolerance.air_temperature_min = doc["air_temperature"][0];
+  tolerance.air_temperature_max = doc["air_temperature"][1];
 }
 
 /* TODO:
-    1.) initial 12mL for each nutrient
-    2.) payload to int for checking single character callback like harvest and init pumps
+    1.) initial 12mL for each nutrient and PH buffer
 */
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -223,35 +221,32 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 
   //if primetube command is recieved
-  // if(!strcmp(topic, topic_init_pumps)){
-  //   char command_value[0];
-  //   command_value[0] = (char)payload[0];
-  //   if (command_value[0] == '1'){
-  //   primePumps();
-  //   }
-  // }
+  if(!strcmp(topic, topic_init_pumps)){
+    if(!strcmp((char *)payload, "1")){
+    primePumps();
+    }
+  }
 
-  //if harvest command is recieved
-  // if(!strcmp(topic, harvest_command)){
-  //   char harvest_command_value[0];
-  //   harvest_command_value[0] = (char)payload[0];
-  //   if (harvest_command_value[0] == '1'){
-  //   initialized = false;
-  //   }
-  // }
+  // if harvest command is recieved
+  if(!strcmp(topic, harvest_command)){
+    if(!strcmp((char *)payload, "1")){
+      initialized = false;
+      mqttClient.unsubscribe(change_value_ph);
+      mqttClient.unsubscribe(change_value_ec);
+      mqttClient.unsubscribe(change_value_air_hum);
+      mqttClient.unsubscribe(change_value_air_temp);
+      mqttClient.subscribe(command_new_crop);
+    }
+  }
 }
-
-// Ethernet and MQTT related objects
-EthernetClient ethClient;
-PubSubClient mqttClient(server, 1883, callback, ethClient);
 
 void setup() {
   Serial.begin(115200);
 
-  // waterPumpDelay.start(30000);    // pump 30 sec interval
-  // mqttDelay.start(5000);          // mqtt 5 sec send delay
-  // phRoutineDelay.start(1800000);  //ph check routine for pumping ph up and down
-  // ecRoutineDelay.start(1800000);  //ec routine for pumping nutrients
+  waterPumpDelay.start(30000);    // pump 30 sec interval
+  mqttDelay.start(5000);          // mqtt 5 sec send delay
+  phRoutineDelay.start(1800000);  //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(1800000);  //ec routine for pumping nutrients
 
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
@@ -291,6 +286,8 @@ void setup() {
     Serial.println("Didn't find Si1145");
     while (1);
   }
+
+  mqttClient.setCallback(callback);
   mqttClient.subscribe(command_new_crop);
 }
 
@@ -302,10 +299,13 @@ void reconnect() {
     if (mqttClient.connect("HYD-1")) {
       Serial.println("connected");
       // ...resubscribe
-      mqttClient.subscribe(change_value_ph);
-      mqttClient.subscribe(change_value_ec);
-      mqttClient.subscribe(change_value_air_hum);
-      mqttClient.subscribe(change_value_air_temp);
+      if(initialized){
+        mqttClient.subscribe(change_value_ph);
+        mqttClient.subscribe(change_value_ec);
+        mqttClient.subscribe(change_value_air_hum);
+        mqttClient.subscribe(change_value_air_temp);
+        mqttClient.subscribe(harvest_command);
+      }
       mqttClient.publish(connection,"connected");
     } else {
       Serial.print("failed, rc=");
@@ -404,9 +404,14 @@ float ec_reading(){
 float tds_reading() {
   float tdsValue = 0;
   float Voltage = 0;
+  float tdsValueTemp;
+  double tdsFactor = 0.5;
+  float temperature = water_temperature();
   int sensorValue = analogRead(TdsSensorPin);
-  Voltage = sensorValue*3.5/1024.0; //Convert analog reading to Voltage
-  tdsValue=(133.42/Voltage*Voltage*Voltage - 255.86*Voltage*Voltage + 857.39*Voltage)*0.5; //Convert voltage value to TDS value
+  Voltage = sensorValue*3.5/1024.0;                                                         //Convert analog reading to Voltage
+  tdsValue=(133.42/Voltage*Voltage*Voltage - 255.86*Voltage*Voltage + 857.39*Voltage)*1.0;  //Convert voltage value to TDS value
+  tdsValueTemp = tdsValue / (1.0+0.02*(temperature-25.0));                                  //temperature compensation
+  tdsValue = tdsValueTemp * tdsFactor;
   return (tdsValue);
 }
 
@@ -420,7 +425,7 @@ void light_check(int ir_value){
 }
 
 void run_fan(float hum_value, float temp_value) {
-  if( (temp_value > air_temperature_max) || (hum_value > air_humidity_max) ){
+  if( (temp_value > tolerance.air_temperature_max) || (hum_value > tolerance.air_humidity_max) ){
     digitalWrite(RELAY_PIN6, LOW);
   } else {
     digitalWrite(RELAY_PIN6, HIGH);
@@ -429,11 +434,11 @@ void run_fan(float hum_value, float temp_value) {
 
 void phCheck() {
   float ph_value = ph_reading();
-  if(ph_reading_min > ph_value){
+  if(tolerance.ph_reading_min > ph_value){
     phUPDelay.start((1250/7)*10);
     actuatePeristaltic("on", 1);
   }
-  if(ph_reading_max < ph_value){
+  if(tolerance.ph_reading_max < ph_value){
     phDOWNDelay.start((156.25)*10);
     actuatePeristaltic("on", 2);
   }
@@ -441,7 +446,7 @@ void phCheck() {
 
 void ecCheck() {
   float ec_value = ec_reading();
-  if(ec_reading_min > ec_value){
+  if(tolerance.ec_reading_min > ec_value){
     nutrientCDelay.start((2500/13)*10);
     nutrientBDelay.start((1250/9)*10);
     nutrientADelay.start((2500/17)*10);
@@ -476,7 +481,6 @@ void loop() {
   mqttClient.loop();
 
   if(initialized){
-    mqttClient.unsubscribe(command_new_crop);
     light_check(infrared_light());
     run_fan(air_humidity(), air_temperature());
 
