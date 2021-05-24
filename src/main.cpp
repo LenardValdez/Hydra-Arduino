@@ -1,13 +1,12 @@
 //Arduino framework
 #include <Arduino.h>          // Arduino framework for CPP
-// #include "header.h"           //Important headers for dependencies
 #include "pin_constants.h"    //header for pin assignment constants
 #include "mqttConstants.h"    //for mqtt constants
+#include "constants.h"
 
 //Sensor Initialization
 DFRobot_PH ph;
 DFRobot_EC ec;
-// GravityTDS gravityTds;
 Adafruit_SI1145 uv = Adafruit_SI1145();
 DHT dht(DHT21PIN, DHTTYPE);
 OneWire oneWire(TEMP_SENSOR_PIN);
@@ -19,39 +18,58 @@ millisDelay waterPumpDelay;
 //mqtt publish interval
 millisDelay mqttDelay;
 
-// priming delay inits
-millisDelay primeDelay1, primeDelay2, primeDelay3, primeDelay4, primeDelay5;
+// peristaltic pumps delay inits
+millisDelay phUPDelay, phDOWNDelay, nutrientCDelay, nutrientBDelay, nutrientADelay;
 
-//Global vars
+millisDelay phRoutineDelay, ecRoutineDelay;
 
-void actuatePeristaltic() {
-  digitalWrite(RELAY_PIN1, LOW);
-  digitalWrite(RELAY_PIN2, LOW);
-  digitalWrite(RELAY_PIN3, LOW);
-  digitalWrite(RELAY_PIN4, LOW);
-  digitalWrite(RELAY_PIN5, LOW);
-}
+//turn on and off peristaltic pump based on string "on" or "off" and the pump number
+void actuatePeristaltic(String actuateType, int pump_number){
+  
+  if(!actuateType.compareTo("off")){
+    switch (pump_number)
+    {
+    case 1:
+      digitalWrite(RELAY_PIN1, HIGH);
+      break;
+    case 2:
+      digitalWrite(RELAY_PIN2, HIGH);
+      break;
+    case 3:
+      digitalWrite(RELAY_PIN3, HIGH);
+      break;
+    case 4:
+      digitalWrite(RELAY_PIN4, HIGH);
+      break;
+    case 5:
+      digitalWrite(RELAY_PIN5, HIGH);
+      break;
+    default:
+      break;
+    }
+  } 
 
-void actuatePeristaltic(int pump_number){
-  switch (pump_number)
-  {
-  case 1:
-    digitalWrite(RELAY_PIN1, HIGH);
-    break;
-  case 2:
-    digitalWrite(RELAY_PIN2, HIGH);
-    break;
-  case 3:
-    digitalWrite(RELAY_PIN3, HIGH);
-    break;
-  case 4:
-    digitalWrite(RELAY_PIN4, HIGH);
-    break;
-  case 5:
-    digitalWrite(RELAY_PIN5, HIGH);
-    break;
-  default:
-    break;
+  else if (!actuateType.compareTo("on")){
+    switch (pump_number)
+    {
+    case 1:
+      digitalWrite(RELAY_PIN1, LOW);
+      break;
+    case 2:
+      digitalWrite(RELAY_PIN2, LOW);
+      break;
+    case 3:
+      digitalWrite(RELAY_PIN3, LOW);
+      break;
+    case 4:
+      digitalWrite(RELAY_PIN4, LOW);
+      break;
+    case 5:
+      digitalWrite(RELAY_PIN5, LOW);
+      break;
+    default:
+      break;
+    }
   }
 }
 
@@ -65,13 +83,110 @@ void waterPumpActuate(){
 }
 
 void primePumps() {
-  primeDelay1.start(40000/7);
-  primeDelay2.start(5625);
-  primeDelay3.start(7307.6923);
-  primeDelay4.start(5555.5555);
-  primeDelay5.start(5735.2941);
-  actuatePeristaltic();
+  phUPDelay.start(40000/7);
+  actuatePeristaltic("on", 1);
+  phDOWNDelay.start(5625);
+  actuatePeristaltic("on", 2);
+  nutrientCDelay.start(7307.6923);
+  actuatePeristaltic("on", 3);
+  nutrientBDelay.start(5555.5555);
+  actuatePeristaltic("on", 4);
+  nutrientADelay.start(5735.2941);
+  actuatePeristaltic("on", 5);
 }
+
+void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLength) {
+
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  // const char* pod_name = doc["pod_name"]; // "hyd-1"
+  tolerance.air_humidity_min = doc["air_humidity"][0];
+  tolerance.air_humidity_max = doc["air_humidity"][1];
+
+  tolerance.air_temperature_min = doc["air_temperature"][0];
+  tolerance.air_temperature_max = doc["air_temperature"][1];
+
+  tolerance.ec_reading_min = doc["ec_reading"][0];
+  tolerance.ec_reading_max = doc["ec_reading"][1];
+
+  tolerance.ph_reading_min = doc["ph_reading"][0];
+  tolerance.ph_reading_max = doc["ph_reading"][1];
+
+  mqttClient.subscribe(change_value_ph);
+  mqttClient.subscribe(change_value_ec);
+  mqttClient.subscribe(change_value_air_hum);
+  mqttClient.subscribe(change_value_air_temp);
+  mqttClient.subscribe(harvest_command);
+  mqttClient.subscribe(topic_init_pumps);
+  mqttClient.unsubscribe(command_new_crop);
+  initialized = true;
+}
+
+void changePH(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
+
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  tolerance.ph_reading_min = doc["ph_reading"][0];
+  tolerance.ph_reading_max = doc["ph_reading"][1];
+}
+
+void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
+
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  tolerance.ec_reading_min = doc["ec_reading"][0];
+  tolerance.ec_reading_max = doc["ec_reading"][1]; 
+}
+
+void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
+
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  tolerance.air_humidity_min = doc["air_humidity"][0];
+  tolerance.air_humidity_max = doc["air_humidity"][1];
+}
+
+void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
+
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  tolerance.air_temperature_min = doc["air_temperature"][0];
+  tolerance.air_temperature_max = doc["air_temperature"][1];
+}
+
+/* TODO:
+    1.) initial 12mL for each nutrient and PH buffer
+*/
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -79,62 +194,67 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("] ");
   Serial.println("");
 
+  //newcrop callback routine
+  if(!initialized){
+    if(!strcmp(topic, command_new_crop)){
+      StaticJsonDocument<256> doc;
+      newCrop(doc, payload, length);
+    }
+  }
+  //change value callback routines
+  if(initialized){
+    if(!strcmp(topic, change_value_ph)){
+      StaticJsonDocument<48> doc;
+      changePH(doc, payload, length);
+    }
+    if(!strcmp(topic, change_value_ec)){
+      StaticJsonDocument<48> doc;
+      changeEC(doc, payload, length);
+    }
+    if(!strcmp(topic, change_value_air_hum)){
+      StaticJsonDocument<48> doc;
+      changeHUM(doc, payload, length);
+    }
+    if(!strcmp(topic, change_value_air_temp)){
+      StaticJsonDocument<48> doc;
+      changeTEMP(doc, payload, length);
+    }
+  }
+
   //if primetube command is recieved
   if(!strcmp(topic, topic_init_pumps)){
-    char command_value[0];
-    command_value[0] = (char)payload[0];
-    if (command_value[0] == '1'){
-    primePumps();
+    StaticJsonDocument<16> doc;
+    deserializeJson(doc, payload, length);
+    if(!strcmp("1", doc["init_pump"])){
+      primePumps();
     }
   }
 
-  /*To do:
-  make routine for te following:
-  1.) other specific commands
-  2.) initialize plant/crop
-  3.) harvest command
-  */
-}
-
-// Ethernet and MQTT related objects
-EthernetClient ethClient;
-PubSubClient mqttClient(server, 1883, callback, ethClient);
-
-void reconnect() {
-  // Loop until we're reconnected
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (mqttClient.connect("HYD-1")) {
-      Serial.println("connected");
-      // ...resubscribe
-      // mqttClient.subscribe(topic_sensor_data);
-      mqttClient.subscribe(topic_commands);
-      // mqttClient.subscribe(connection);
-      // Once connected, publish an announcement...
-      mqttClient.publish(connection,"connected");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
+  // if harvest command is recieved
+  if(!strcmp(topic, harvest_command)){
+    StaticJsonDocument<16> doc;
+    deserializeJson(doc, payload, length);
+    if(!strcmp("1", doc["harvest"])){
+      initialized = false;
+      mqttClient.unsubscribe(change_value_ph);
+      mqttClient.unsubscribe(change_value_ec);
+      mqttClient.unsubscribe(change_value_air_hum);
+      mqttClient.unsubscribe(change_value_air_temp);
+      mqttClient.unsubscribe(topic_init_pumps);
+      mqttClient.subscribe(command_new_crop);
     }
   }
 }
-
-//sensor data json
-StaticJsonDocument<256> sensor_data;
-StaticJsonDocument<256> probe_data;
 
 void setup() {
   Serial.begin(115200);
 
-  waterPumpDelay.start(30000);  // pump 30 sec interval
-  mqttDelay.start(5000);        // mqtt 5 sec send delay
+  waterPumpDelay.start(30000);    // pump 30 sec interval
+  mqttDelay.start(5000);          // mqtt 5 sec send delay
+  phRoutineDelay.start(1800000);  //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(1800000);  //ec routine for pumping nutrients
 
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
-  mqttClient.setServer(server, 1883);
 
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
@@ -156,21 +276,48 @@ void setup() {
   pinMode(RELAY_PIN1, OUTPUT);
   digitalWrite(RELAY_PIN1, HIGH);
 
-  //TDS setup default params
-  // gravityTds.setPin(TdsSensorPin);
-  // gravityTds.setAref(3.5);  //reference voltage on ADC, 3.5V on Arduino DUE
-  // gravityTds.setAdcRange(1024);  //1024 for 10bit ADC;4096 for 12bit ADC
-
   ph.begin();           //PH sensor
   ec.begin();           //EC sensor
   dht.begin();          //hum&temp sensor
   probeSensor.begin();  //probe sensor
-  // gravityTds.begin();   //TDS sensor
 
   //Check UV/IR/Vis light sensor readiness for I2C
   if (! uv.begin(&Wire1)) {
     Serial.println("Didn't find Si1145");
     while (1);
+  }
+
+  mqttClient.setCallback(callback);
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!mqttClient.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (mqttClient.connect("HYD-1")) {
+      Serial.println("connected");
+      // ...resubscribe
+      if (!initialized)
+      {
+        mqttClient.subscribe(command_new_crop);
+      }
+      
+      if(initialized){
+        mqttClient.subscribe(change_value_ph);
+        mqttClient.subscribe(change_value_ec);
+        mqttClient.subscribe(change_value_air_hum);
+        mqttClient.subscribe(change_value_air_temp);
+        mqttClient.subscribe(harvest_command);
+      }
+      mqttClient.publish(connection,"connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
   }
 }
 
@@ -185,22 +332,22 @@ bool contactless_liquid_level(){
     }
 }
 
-String reservoir_level(){
+int reservoir_level(){
   
   int floatLow = !digitalRead(Float_Switch_Low);
   int floatHigh = !digitalRead(Float_Switch_High);
   
   if(floatHigh == 1 && floatLow == 0){
-    return ("100%");
+    return 100;
     }
   else if(floatHigh == 0 && floatLow == 0){
-    return ("50%");
+    return 50;
     }
   else if(floatHigh == 0 && floatLow == 1){
-    return ("0%");
+    return 0;
     }
   else {
-    return ("Float sensors might be stuck");
+    return -1;
    }
 }
 
@@ -212,77 +359,54 @@ int infrared_light(){
   return (uv.readIR());
 }
 
-float UV_light() {
+float uv_light() {
   float UVindex = uv.readUV();
   UVindex /= 100.0;
   return (UVindex);
 }
 
-float readProbeTemperature(){
+float water_temperature(){
   probeSensor.requestTemperatures();
   float tempC = probeSensor.getTempCByIndex(0);
   return (tempC);
 }
 
-float PH_reading() {
+float ph_reading() {
   float phValue;
   float phVoltage;
   float temperature;
-  static unsigned long timepoint = millis();
-  if(millis()-timepoint>1000U){                  //time interval: 1s
-    timepoint = millis();
-    temperature = readProbeTemperature();      // read your temperature sensor to execute temperature compensation
-    phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
-    phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
-    return (phValue);
-  }   
+  temperature = water_temperature();      // read your temperature sensor to execute temperature compensation
+  phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
+  phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
+  return (phValue);
 }
 
-float EC_reading(){
-  static unsigned long timepoint = millis();
+float ec_reading(){
   float temperature;
   float ecValue;
   float ecVoltage;
-  if(millis()-timepoint>1000U)  //time interval: 1s
-  {
-    timepoint = millis();
-    ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
-    temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
-    ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
-    return (ecValue);
-  }
+  ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
+  temperature = water_temperature();         // read your temperature sensor to execute temperature compensation
+  ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
+  return (ecValue);
 }
 
-// float TDS_reading() {
-//   float tdsValue = 0;
-//   float temperature;
-//   static unsigned long timepoint = millis();
-//   if(millis()-timepoint>1000U)  //time interval: 1s
-//   {
-//     temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
-//     gravityTds.setTemperature(temperature);       // set the temperature and execute temperature compensation
-//     gravityTds.update();                          //sample and calculate 
-//     tdsValue = gravityTds.getTdsValue();          // then get the value
-//     return (tdsValue);
-//   }
-// }
-
-float TDS_reading() {
-  float tdsValue = 0;
-  float Voltage = 0;
-  static unsigned long timepoint = millis();
-  if(millis()-timepoint>1000U)  //time interval: 1s
-  {
-    timepoint = millis();
-    int sensorValue = analogRead(TdsSensorPin);
-    Voltage = sensorValue*3.5/1024.0; //Convert analog reading to Voltage
-    tdsValue=(133.42/Voltage*Voltage*Voltage - 255.86*Voltage*Voltage + 857.39*Voltage)*0.5; //Convert voltage value to TDS value
-    return (tdsValue);
-  }
+float tds_reading() {
+  float tdsValue;
+  float Voltage;
+  float tdsValueTemp;
+  double tdsFactor = 0.5;
+  float temperature = water_temperature();
+  int sensorValue = analogRead(TdsSensorPin);
+  Voltage = sensorValue*3.5/1024.0;                                                         //Convert analog reading to Voltage
+  tdsValue=(133.42/Voltage*Voltage*Voltage - 255.86*Voltage*Voltage + 857.39*Voltage)*1.0;  //Convert voltage value to TDS value
+  tdsValueTemp = tdsValue / (1.0+0.02*(temperature-25.0));                                  //temperature compensation
+  tdsValue = tdsValueTemp * tdsFactor;
+  return (tdsValue);
 }
 
 void light_check(int ir_value){
-  if(ir_value < 300){
+  if(ir_value < 260){
     digitalWrite(RELAY_PIN7, LOW);
   } else {
     digitalWrite(RELAY_PIN7, HIGH);
@@ -290,15 +414,42 @@ void light_check(int ir_value){
   delay(1000);
 }
 
-void run_fan(float hum_value) {
-  if(hum_value > 70){
+void run_fan(float hum_value, float temp_value) {
+  if( (temp_value > tolerance.air_temperature_max) || (hum_value > tolerance.air_humidity_max) ){
     digitalWrite(RELAY_PIN6, LOW);
   } else {
     digitalWrite(RELAY_PIN6, HIGH);
   }
 }
 
-float Air_humidity() {
+void phCheck() {
+  float ph_value = ph_reading();
+  if(tolerance.ph_reading_min > ph_value){
+    phUPDelay.start((1250/7)*10);
+    actuatePeristaltic("on", 1);
+  }
+  if(tolerance.ph_reading_max < ph_value){
+    phDOWNDelay.start((156.25)*10);
+    actuatePeristaltic("on", 2);
+  }
+}
+
+void ecCheck() {
+  float ec_value = ec_reading();
+  if(tolerance.ec_reading_min > ec_value){
+    nutrientCDelay.start((2500/13)*10);
+    Serial.print("pump 3 on!"); //debugging note
+    actuatePeristaltic("on", 3);
+    nutrientBDelay.start((1250/9)*10);
+    Serial.print("pump 4 on!"); //debugging note
+    actuatePeristaltic("on", 4);
+    nutrientADelay.start((2500/17)*10);
+    Serial.print("pump 5 on!"); //debugging note
+    actuatePeristaltic("on", 5);
+  }
+}
+
+float air_humidity() {
   float hum = dht.readHumidity();
   if (isnan(hum)) 
   {
@@ -307,7 +458,7 @@ float Air_humidity() {
   return (hum);
 }
 
-float Air_temperature(){
+float air_temperature(){
   float temp = dht.readTemperature();
   if (isnan(temp)) 
   {
@@ -317,52 +468,71 @@ float Air_temperature(){
 }
 
 void loop() {
-  light_check(infrared_light());
-  run_fan(Air_humidity());
-
   if (!mqttClient.connected()) {
     reconnect();
   }
   mqttClient.loop();
 
-  char buffer[256];
-  if(mqttDelay.justFinished()){
-    sensor_data["air_Humidity"] = Air_humidity();
-    sensor_data["air_Temperature"] = Air_temperature();
-    sensor_data["contactless_liquid_level"] = contactless_liquid_level();
-    sensor_data["uv_light"] = UV_light();
-    sensor_data["infrared_light"] = infrared_light();
-    sensor_data["visible_light"] = visible_light();
-    sensor_data["reservoir_level"] = reservoir_level();
-    probe_data["water_temp"] = readProbeTemperature();
-    probe_data["tds_reading"] = TDS_reading();
-    probe_data["ec_reading"] = EC_reading();
-    probe_data["ph_reading"] = PH_reading();
-    size_t sens_dat = serializeJson(sensor_data, buffer);
-    mqttClient.publish(topic_sensor_data, buffer, sens_dat);
-    size_t probe_dat = serializeJson(probe_data, buffer);
-    mqttClient.publish(topic_probe_data, buffer, probe_dat);
-    mqttDelay.repeat();
-  }
+  if(initialized){
+    light_check(infrared_light());
+    run_fan(air_humidity(), air_temperature());
 
-  // if(waterPumpDelay.justFinished()){
-  //   waterPumpActuate();
-  // }
+    if(phRoutineDelay.justFinished()){
+      phCheck();
+      phRoutineDelay.repeat();
+    }
+
+    if(ecRoutineDelay.justFinished()){
+      ecCheck();
+      ecRoutineDelay.repeat();
+    }
+
+    char buffer[256];
+    if(mqttDelay.justFinished()){
+      //sensor data json
+      StaticJsonDocument<128> sensor_data;
+      StaticJsonDocument<64> probe_data;
+
+      sensor_data["air_humidity"] = air_humidity();
+      sensor_data["air_temperature"] = air_temperature();
+      sensor_data["contactless_liquid_level"] = contactless_liquid_level();
+      sensor_data["uv_light"] = uv_light();
+      sensor_data["infrared_light"] = infrared_light();
+      sensor_data["visible_light"] = visible_light();
+      sensor_data["reservoir_level"] = reservoir_level();
+      probe_data["water_temperature"] = water_temperature();
+      probe_data["tds_reading"] = tds_reading();
+      probe_data["ec_reading"] = ec_reading();
+      probe_data["ph_reading"] = ph_reading();
+      //publish data
+      size_t sens_dat = serializeJson(sensor_data, buffer);
+      mqttClient.publish(topic_sensor_data, buffer, sens_dat);
+      size_t probe_dat = serializeJson(probe_data, buffer);
+      mqttClient.publish(topic_probe_data, buffer, probe_dat);
+      mqttDelay.repeat();
+    }
+
+    // disabled for testing purposes(working)
+    // if(waterPumpDelay.justFinished()){
+    //   waterPumpActuate();
+    //   waterPumpDelay.repeat();
+    // }
+  }
 
   //Ppump turn off
-  if(primeDelay1.justFinished()){
-    actuatePeristaltic(1);
+  if(phUPDelay.justFinished()){
+    actuatePeristaltic("off", 1);
   }
-  if (primeDelay2.justFinished()){
-    actuatePeristaltic(2);
+  if (phDOWNDelay.justFinished()){
+    actuatePeristaltic("off", 2);
   }
-  if (primeDelay3.justFinished()){
-    actuatePeristaltic(3);
+  if (nutrientCDelay.justFinished()){
+    actuatePeristaltic("off", 3);
   }
-  if (primeDelay4.justFinished()){
-    actuatePeristaltic(4);
+  if (nutrientBDelay.justFinished()){
+    actuatePeristaltic("off", 4);
   }
-  if (primeDelay5.justFinished()){
-    actuatePeristaltic(5);
+  if (nutrientADelay.justFinished()){
+    actuatePeristaltic("off", 5);
   }
 }
