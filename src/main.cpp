@@ -7,7 +7,6 @@
 //Sensor Initialization
 DFRobot_PH ph;
 DFRobot_EC ec;
-// GravityTDS gravityTds;
 Adafruit_SI1145 uv = Adafruit_SI1145();
 DHT dht(DHT21PIN, DHTTYPE);
 OneWire oneWire(TEMP_SENSOR_PIN);
@@ -123,6 +122,8 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
   mqttClient.subscribe(change_value_ec);
   mqttClient.subscribe(change_value_air_hum);
   mqttClient.subscribe(change_value_air_temp);
+  mqttClient.subscribe(harvest_command);
+  mqttClient.subscribe(topic_init_pumps);
   mqttClient.unsubscribe(command_new_crop);
   initialized = true;
 }
@@ -222,19 +223,24 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   //if primetube command is recieved
   if(!strcmp(topic, topic_init_pumps)){
-    if(!strcmp((char *)payload, "1")){
-    primePumps();
+    StaticJsonDocument<16> doc;
+    deserializeJson(doc, payload, length);
+    if(!strcmp("1", doc["init_pump"])){
+      primePumps();
     }
   }
 
   // if harvest command is recieved
   if(!strcmp(topic, harvest_command)){
-    if(!strcmp((char *)payload, "1")){
+    StaticJsonDocument<16> doc;
+    deserializeJson(doc, payload, length);
+    if(!strcmp("1", doc["harvest"])){
       initialized = false;
       mqttClient.unsubscribe(change_value_ph);
       mqttClient.unsubscribe(change_value_ec);
       mqttClient.unsubscribe(change_value_air_hum);
       mqttClient.unsubscribe(change_value_air_temp);
+      mqttClient.unsubscribe(topic_init_pumps);
       mqttClient.subscribe(command_new_crop);
     }
   }
@@ -270,16 +276,10 @@ void setup() {
   pinMode(RELAY_PIN1, OUTPUT);
   digitalWrite(RELAY_PIN1, HIGH);
 
-  //TDS setup default params
-  // gravityTds.setPin(TdsSensorPin);
-  // gravityTds.setAref(3.5);  //reference voltage on ADC, 3.5V on Arduino DUE
-  // gravityTds.setAdcRange(1024);  //1024 for 10bit ADC;4096 for 12bit ADC
-
   ph.begin();           //PH sensor
   ec.begin();           //EC sensor
   dht.begin();          //hum&temp sensor
   probeSensor.begin();  //probe sensor
-  // gravityTds.begin();   //TDS sensor
 
   //Check UV/IR/Vis light sensor readiness for I2C
   if (! uv.begin(&Wire1)) {
@@ -288,7 +288,6 @@ void setup() {
   }
 
   mqttClient.setCallback(callback);
-  mqttClient.subscribe(command_new_crop);
 }
 
 void reconnect() {
@@ -299,6 +298,11 @@ void reconnect() {
     if (mqttClient.connect("HYD-1")) {
       Serial.println("connected");
       // ...resubscribe
+      if (!initialized)
+      {
+        mqttClient.subscribe(command_new_crop);
+      }
+      
       if(initialized){
         mqttClient.subscribe(change_value_ph);
         mqttClient.subscribe(change_value_ec);
@@ -387,23 +391,9 @@ float ec_reading(){
   return (ecValue);
 }
 
-// float TDS_reading() {
-//   float tdsValue = 0;
-//   float temperature;
-//   static unsigned long timepoint = millis();
-//   if(millis()-timepoint>1000U)  //time interval: 1s
-//   {
-//     temperature = readProbeTemperature();         // read your temperature sensor to execute temperature compensation
-//     gravityTds.setTemperature(temperature);       // set the temperature and execute temperature compensation
-//     gravityTds.update();                          //sample and calculate 
-//     tdsValue = gravityTds.getTdsValue();          // then get the value
-//     return (tdsValue);
-//   }
-// }
-
 float tds_reading() {
-  float tdsValue = 0;
-  float Voltage = 0;
+  float tdsValue;
+  float Voltage;
   float tdsValueTemp;
   double tdsFactor = 0.5;
   float temperature = water_temperature();
@@ -416,7 +406,7 @@ float tds_reading() {
 }
 
 void light_check(int ir_value){
-  if(ir_value < 300){
+  if(ir_value < 260){
     digitalWrite(RELAY_PIN7, LOW);
   } else {
     digitalWrite(RELAY_PIN7, HIGH);
@@ -448,10 +438,13 @@ void ecCheck() {
   float ec_value = ec_reading();
   if(tolerance.ec_reading_min > ec_value){
     nutrientCDelay.start((2500/13)*10);
-    nutrientBDelay.start((1250/9)*10);
-    nutrientADelay.start((2500/17)*10);
+    Serial.print("pump 3 on!"); //debugging note
     actuatePeristaltic("on", 3);
+    nutrientBDelay.start((1250/9)*10);
+    Serial.print("pump 4 on!"); //debugging note
     actuatePeristaltic("on", 4);
+    nutrientADelay.start((2500/17)*10);
+    Serial.print("pump 5 on!"); //debugging note
     actuatePeristaltic("on", 5);
   }
 }
