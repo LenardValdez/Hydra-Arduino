@@ -219,7 +219,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       }
     }
   }
-
   //newcrop callback routine to assign tolerance
   if(!initialized){
     if(!strcmp(topic, command_new_crop)){
@@ -328,12 +327,11 @@ void reconnect() {
     // Attempt to connect
     if (mqttClient.connect("HYD-1", connection, 2, false, LWAT)) {
       Serial.println("connected");
+      mqttClient.subscribe(pumps_primed);
       //resubscribe to topics acording to state of initialization
-      if (!initialized)
-      {
+      if (!initialized){
         mqttClient.subscribe(command_new_crop);
       }
-      
       if(initialized){
         mqttClient.subscribe(change_value_ph);
         mqttClient.subscribe(change_value_ec);
@@ -343,7 +341,8 @@ void reconnect() {
       }
       //publish connection status
       mqttClient.publish(connection,"connected");
-    } else { //if connection failed print to Serial of the reason of failure then try again
+    } 
+    else { //if connection failed print to Serial of the reason of failure then try again
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
       Serial.println(" try again in 5 seconds");
@@ -526,7 +525,7 @@ void loop() {
       //sensor data json
       StaticJsonDocument<128> sensor_data;
       StaticJsonDocument<64> probe_data;
-
+      //sensor data being deserialized to json
       sensor_data["air_humidity"] = air_humidity();
       sensor_data["air_temperature"] = air_temperature();
       sensor_data["contactless_liquid_level"] = contactless_liquid_level();
@@ -538,7 +537,7 @@ void loop() {
       probe_data["tds_reading"] = tds_reading();
       probe_data["ec_reading"] = ec_reading();
       probe_data["ph_reading"] = ph_reading();
-      //publish data
+      // serialize data and publish data
       size_t sens_dat = serializeJson(sensor_data, buffer);
       mqttClient.publish(topic_sensor_data, buffer, sens_dat);
       size_t probe_dat = serializeJson(probe_data, buffer);
@@ -546,11 +545,11 @@ void loop() {
       mqttDelay.repeat();
     }
 
-    // disabled for testing purposes(working)
-    // if(waterPumpDelay.justFinished()){
-    //   waterPumpActuate();
-    //   waterPumpDelay.repeat();
-    // }
+    // water sprinkler actuation timed for 30sec off and on
+    if(waterPumpDelay.justFinished()){
+      waterPumpActuate();
+      waterPumpDelay.repeat();
+    }
   }
 
   //Ppump turn off
