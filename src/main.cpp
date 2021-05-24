@@ -74,6 +74,7 @@ void actuatePeristaltic(String actuateType, int pump_number){
   }
 }
 
+//water pump/sprinkler actuation
 void waterPumpActuate(){
   if(digitalRead(RELAY_PIN8) == HIGH){
     digitalWrite(RELAY_PIN8, LOW);
@@ -83,8 +84,10 @@ void waterPumpActuate(){
   }
 }
 
-void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLength) {
+//new crop routine for initializing new crop to the Pod
+void newCrop(byte* payload, unsigned int inputLength) {
 
+  StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -107,38 +110,47 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
   tolerance.ph_reading_min = doc["ph_reading"][0];
   tolerance.ph_reading_max = doc["ph_reading"][1];
 
-  if(doc["prime_tubes"] == true){
-    phUPDelay.start(40000/7);
-    actuatePeristaltic("on", 1);
-    phDOWNDelay.start(5625);
-    actuatePeristaltic("on", 2);
-    nutrientCDelay.start(395000/13);
-    actuatePeristaltic("on", 3);
-    nutrientBDelay.start(200000/9);
-    actuatePeristaltic("on", 4);
-    nutrientADelay.start(397500/17);
-    actuatePeristaltic("on", 5);
-  }
-  if(doc["prime_tubes"] == false){
-    nutrientCDelay.start(((2500/13)*10)*12);
-    actuatePeristaltic("on", 3);
-    nutrientBDelay.start(((1250/9)*10)*12);
-    actuatePeristaltic("on", 4);
-    nutrientADelay.start(((2500/17)*10)*12);
-    actuatePeristaltic("on", 5);
+  //check if prime tubes is true if not just pump 12mL of nutrients(A B C)
+
+  if(!primed){
+    if(doc["init_pump"] == true){
+      phUPDelay.start(40000/7);
+      actuatePeristaltic("on", 1);
+      phDOWNDelay.start(5625);
+      actuatePeristaltic("on", 2);
+      nutrientCDelay.start(395000/13);
+      actuatePeristaltic("on", 3);
+      nutrientBDelay.start(200000/9);
+      actuatePeristaltic("on", 4);
+      nutrientADelay.start(397500/17);
+      actuatePeristaltic("on", 5);
+      mqttClient.publish(pumps_primed, "true", true);
+    }
+    if(doc["init_pump"] == false){
+      nutrientCDelay.start(((2500/13)*10)*12);
+      actuatePeristaltic("on", 3);
+      nutrientBDelay.start(((1250/9)*10)*12);
+      actuatePeristaltic("on", 4);
+      nutrientADelay.start(((2500/17)*10)*12);
+      actuatePeristaltic("on", 5);
+    }
   }
 
+  //subscribe to change value topics and unsubscribe to new crop for protection of reinitializing
   mqttClient.subscribe(change_value_ph);
   mqttClient.subscribe(change_value_ec);
   mqttClient.subscribe(change_value_air_hum);
   mqttClient.subscribe(change_value_air_temp);
   mqttClient.subscribe(harvest_command);
   mqttClient.unsubscribe(command_new_crop);
+  mqttClient.unsubscribe(pumps_primed);
+  //change intialization state
   initialized = true;
 }
-
-void changePH(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+//changing the value of the tolerance codeblock
+/*---------------------------------------START OF CHANGE VALUE CODE BLOCK-----------------------------------------*/
+void changePH(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -151,8 +163,8 @@ void changePH(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLeng
   tolerance.ph_reading_max = doc["ph_reading"][1];
 }
 
-void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+void changeEC(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -165,8 +177,8 @@ void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLeng
   tolerance.ec_reading_max = doc["ec_reading"][1]; 
 }
 
-void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+void changeHUM(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -179,8 +191,8 @@ void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLen
   tolerance.air_humidity_max = doc["air_humidity"][1];
 }
 
-void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+void changeTEMP(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -192,6 +204,7 @@ void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLe
   tolerance.air_temperature_min = doc["air_temperature"][0];
   tolerance.air_temperature_max = doc["air_temperature"][1];
 }
+/*-------------------------------------END OF CHANGE VALUE CODE BOCK-------------------------------------------*/
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -199,61 +212,68 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("] ");
   Serial.println("");
 
-  //newcrop callback routine makes a defaul
-  if(!initialized){
-    if(!strcmp(topic, command_new_crop)){
-      StaticJsonDocument<256> doc;
-      newCrop(doc, payload, length);
-    }
-  }
-  //change value callback routines for change value after initialization
-  if(initialized){
-    if(!strcmp(topic, change_value_ph)){
-      StaticJsonDocument<48> doc;
-      changePH(doc, payload, length);
-    }
-    if(!strcmp(topic, change_value_ec)){
-      StaticJsonDocument<48> doc;
-      changeEC(doc, payload, length);
-    }
-    if(!strcmp(topic, change_value_air_hum)){
-      StaticJsonDocument<48> doc;
-      changeHUM(doc, payload, length);
-    }
-    if(!strcmp(topic, change_value_air_temp)){
-      StaticJsonDocument<48> doc;
-      changeTEMP(doc, payload, length);
+  if(!primed){
+    if(!strcmp(topic, pumps_primed)){
+      if (!strncmp((char *)payload, "true", length)) {
+        primed =true;
+      }
     }
   }
 
-  // if harvest command is recieved
-  if(!strcmp(topic, harvest_command)){
-    StaticJsonDocument<16> doc;
-    deserializeJson(doc, payload, length);
-    if(doc["harvest"] == 1){
-      // reset initialized state
-      initialized = false;
-      //turn all 12v relay connection
-      digitalWrite(RELAY_PIN8, HIGH);
-      digitalWrite(RELAY_PIN7, HIGH);
-      digitalWrite(RELAY_PIN6, HIGH);
-      digitalWrite(RELAY_PIN5, HIGH);
-      digitalWrite(RELAY_PIN4, HIGH);
-      digitalWrite(RELAY_PIN3, HIGH);
-      digitalWrite(RELAY_PIN2, HIGH);
-      digitalWrite(RELAY_PIN1, HIGH);
-      // unsubscribe to all commands except new_crop
-      mqttClient.unsubscribe(harvest_command);
-      mqttClient.unsubscribe(change_value_ph);
-      mqttClient.unsubscribe(change_value_ec);
-      mqttClient.unsubscribe(change_value_air_hum);
-      mqttClient.unsubscribe(change_value_air_temp);
-      //resubscribe to newcrop command
-      mqttClient.subscribe(command_new_crop);
+  //newcrop callback routine to assign tolerance
+  if(!initialized){
+    if(!strcmp(topic, command_new_crop)){
+      newCrop(payload, length);
+    }
+  }
+  //change value callback routines for tolerance change value after initialization
+  if(initialized){
+    if(!strcmp(topic, change_value_ph)){
+      changePH(payload, length);
+    }
+    if(!strcmp(topic, change_value_ec)){
+      changeEC(payload, length);
+    }
+    if(!strcmp(topic, change_value_air_hum)){
+      changeHUM(payload, length);
+    }
+    if(!strcmp(topic, change_value_air_temp)){
+      changeTEMP(payload, length);
+    }
+
+    // if harvest command is recieved
+    if(!strcmp(topic, harvest_command)){
+      StaticJsonDocument<16> doc;
+      deserializeJson(doc, payload, length);
+      if(doc["harvest"] == true){
+        // reset initialized state and prime state
+        initialized = false;
+        primed = false;
+        // clear retained value of pumps_primed topic
+        mqttClient.publish(pumps_primed, "", true);
+        //turn all 12v relay connection
+        digitalWrite(RELAY_PIN8, HIGH);
+        digitalWrite(RELAY_PIN7, HIGH);
+        digitalWrite(RELAY_PIN6, HIGH);
+        digitalWrite(RELAY_PIN5, HIGH);
+        digitalWrite(RELAY_PIN4, HIGH);
+        digitalWrite(RELAY_PIN3, HIGH);
+        digitalWrite(RELAY_PIN2, HIGH);
+        digitalWrite(RELAY_PIN1, HIGH);
+        // unsubscribe to all commands except new_crop
+        mqttClient.unsubscribe(harvest_command);
+        mqttClient.unsubscribe(change_value_ph);
+        mqttClient.unsubscribe(change_value_ec);
+        mqttClient.unsubscribe(change_value_air_hum);
+        mqttClient.unsubscribe(change_value_air_temp);
+        //resubscribe to newcrop command
+        mqttClient.subscribe(command_new_crop);
+      }
     }
   }
 }
 
+//setup runce only once when the Arduinis turned on have been reset
 void setup() {
   Serial.begin(115200);
 
@@ -262,8 +282,10 @@ void setup() {
   phRoutineDelay.start(900000);   //ph check routine for pumping ph up and down
   ecRoutineDelay.start(900000);   //ec routine for pumping nutrients
 
+  //initialize ethernet parameters
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
+  // set pinmodes assignments for input and output
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
   pinMode(Contact_less_sensor,INPUT);
@@ -284,6 +306,7 @@ void setup() {
   pinMode(RELAY_PIN1, OUTPUT);
   digitalWrite(RELAY_PIN1, HIGH);
 
+  // initialize sensors and probes
   ph.begin();           //PH sensor
   ec.begin();           //EC sensor
   dht.begin();          //hum&temp sensor
@@ -294,18 +317,18 @@ void setup() {
     Serial.println("Didn't find Si1145");
     while (1);
   }
-
+  //set mqtt callback funtion (the part where "do this" when arduino receives mqtt from subscription)
   mqttClient.setCallback(callback);
 }
 
 void reconnect() {
-  // Loop until we're reconnected
+  // Loop until we're reconnected to the broker
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (mqttClient.connect("HYD-1")) {
+    if (mqttClient.connect("HYD-1", connection, 2, false, LWAT)) {
       Serial.println("connected");
-      // ...resubscribe
+      //resubscribe to topics acording to state of initialization
       if (!initialized)
       {
         mqttClient.subscribe(command_new_crop);
@@ -318,8 +341,9 @@ void reconnect() {
         mqttClient.subscribe(change_value_air_temp);
         mqttClient.subscribe(harvest_command);
       }
+      //publish connection status
       mqttClient.publish(connection,"connected");
-    } else {
+    } else { //if connection failed print to Serial of the reason of failure then try again
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
       Serial.println(" try again in 5 seconds");
@@ -430,18 +454,20 @@ void run_fan(float hum_value, float temp_value) {
   }
 }
 
+// the ph actuation
 void phCheck() {
   float ph_value = ph_reading();
   if(tolerance.ph_reading_min > ph_value){
-    phUPDelay.start((1250/7)*10);
+    phUPDelay.start((1250/7)*10); //time for 0.1mL *10 = 1mL
     actuatePeristaltic("on", 1);
   }
   if(tolerance.ph_reading_max < ph_value){
-    phDOWNDelay.start((156.25)*10);
+    phDOWNDelay.start((156.25)*10); // time for 0.1mL * 10 = 1mL
     actuatePeristaltic("on", 2);
   }
 }
 
+//the ec actuation
 void ecCheck() {
   float ec_value = ec_reading();
   if(tolerance.ec_reading_min > ec_value){
@@ -454,6 +480,7 @@ void ecCheck() {
   }
 }
 
+//function that returns the air humidity from the sensor reading
 float air_humidity() {
   float hum = dht.readHumidity();
   if (isnan(hum)) 
@@ -463,6 +490,7 @@ float air_humidity() {
   return (hum);
 }
 
+//function that returns the air temp from the sensor reading
 float air_temperature(){
   float temp = dht.readTemperature();
   if (isnan(temp)) 
@@ -479,19 +507,20 @@ void loop() {
   mqttClient.loop();
 
   if(initialized){
-    light_check(infrared_light());
-    run_fan(air_humidity(), air_temperature());
+    light_check(infrared_light());                //actuate growlight depending on light condition
+    run_fan(air_humidity(), air_temperature());   //actuate fan depending on temp or humidity
 
+    //20min check for ph level and add buffers acordingly
     if(phRoutineDelay.justFinished()){
       phCheck();
       phRoutineDelay.repeat();
     }
-
+    //20min check for ec level and add nutrients acordingly
     if(ecRoutineDelay.justFinished()){
       ecCheck();
       ecRoutineDelay.repeat();
     }
-
+    // char buffer container for json data to be sent
     char buffer[256];
     if(mqttDelay.justFinished()){
       //sensor data json

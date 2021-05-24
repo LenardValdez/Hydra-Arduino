@@ -1,8 +1,8 @@
 //init indication
 bool initialized = false;
-// bool init_again = true;
-//Global vars   
+bool primed = false;
 
+//Global var struct   
 struct constants
 {
     //tolerance variables
