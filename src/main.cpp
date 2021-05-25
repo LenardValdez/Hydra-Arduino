@@ -21,6 +21,7 @@ millisDelay mqttDelay;
 // peristaltic pumps delay inits
 millisDelay phUPDelay, phDOWNDelay, nutrientCDelay, nutrientBDelay, nutrientADelay;
 
+//routine check for EC and PH level
 millisDelay phRoutineDelay, ecRoutineDelay;
 
 //turn on and off peristaltic pump based on string "on" or "off" and the pump number
@@ -73,6 +74,42 @@ void actuatePeristaltic(String actuateType, int pump_number){
   }
 }
 
+void primePumps(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  if(doc["manual_prime"] == true){
+    JsonArray pump_select = doc["pump_select"];
+    if(pump_select[0] == true){
+      phUPDelay.start(40000/7);
+      actuatePeristaltic("on", 1);
+    }
+    if(pump_select[1] == true){
+      phDOWNDelay.start(5625);
+      actuatePeristaltic("on", 2);
+    }
+    if(pump_select[2] == true){
+      nutrientCDelay.start(7307.6923);
+      actuatePeristaltic("on", 3);
+    }
+    if(pump_select[3] == true){
+      nutrientBDelay.start(5555.5555);
+      actuatePeristaltic("on", 4);
+    }
+    if(pump_select[4] == true){
+      nutrientADelay.start(5735.2941);
+      actuatePeristaltic("on", 5);
+    }
+  }
+}
+
+//water pump/sprinkler actuation
 void waterPumpActuate(){
   if(digitalRead(RELAY_PIN8) == HIGH){
     digitalWrite(RELAY_PIN8, LOW);
@@ -82,21 +119,10 @@ void waterPumpActuate(){
   }
 }
 
-void primePumps() {
-  phUPDelay.start(40000/7);
-  actuatePeristaltic("on", 1);
-  phDOWNDelay.start(5625);
-  actuatePeristaltic("on", 2);
-  nutrientCDelay.start(7307.6923);
-  actuatePeristaltic("on", 3);
-  nutrientBDelay.start(5555.5555);
-  actuatePeristaltic("on", 4);
-  nutrientADelay.start(5735.2941);
-  actuatePeristaltic("on", 5);
-}
+//new crop routine for initializing new crop to the Pod
+void newCrop(byte* payload, unsigned int inputLength) {
 
-void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLength) {
-
+  StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -105,7 +131,9 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
     return;
   }
 
+  //naming is to be implemented
   // const char* pod_name = doc["pod_name"]; // "hyd-1"
+
   tolerance.air_humidity_min = doc["air_humidity"][0];
   tolerance.air_humidity_max = doc["air_humidity"][1];
 
@@ -118,18 +146,48 @@ void newCrop(StaticJsonDocument<256> doc,  byte* payload, unsigned int inputLeng
   tolerance.ph_reading_min = doc["ph_reading"][0];
   tolerance.ph_reading_max = doc["ph_reading"][1];
 
+  //check if prime tubes is true if not just pump 12mL of nutrients(A B C)
+
+  if(!primed){
+    if(doc["init_pump"] == true){
+      phUPDelay.start(40000/7);
+      actuatePeristaltic("on", 1);
+      phDOWNDelay.start(5625);
+      actuatePeristaltic("on", 2);
+      nutrientCDelay.start(395000/13);
+      actuatePeristaltic("on", 3);
+      nutrientBDelay.start(200000/9);
+      actuatePeristaltic("on", 4);
+      nutrientADelay.start(397500/17);
+      actuatePeristaltic("on", 5);
+      mqttClient.publish(pumps_primed, "true", true);
+    }
+    if(doc["init_pump"] == false){
+      nutrientCDelay.start(((2500/13)*10)*12);
+      actuatePeristaltic("on", 3);
+      nutrientBDelay.start(((1250/9)*10)*12);
+      actuatePeristaltic("on", 4);
+      nutrientADelay.start(((2500/17)*10)*12);
+      actuatePeristaltic("on", 5);
+    }
+  }
+
+  //subscribe to change value topics and unsubscribe to new crop for protection of reinitializing
   mqttClient.subscribe(change_value_ph);
   mqttClient.subscribe(change_value_ec);
   mqttClient.subscribe(change_value_air_hum);
   mqttClient.subscribe(change_value_air_temp);
   mqttClient.subscribe(harvest_command);
-  mqttClient.subscribe(topic_init_pumps);
   mqttClient.unsubscribe(command_new_crop);
+  mqttClient.subscribe(manual_prime);
+  mqttClient.unsubscribe(pumps_primed);
+  //change intialization state
   initialized = true;
 }
-
-void changePH(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+//changing the value of the tolerance codeblock
+/*---------------------------------------START OF CHANGE VALUE CODE BLOCK-----------------------------------------*/
+void changePH(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -142,8 +200,8 @@ void changePH(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLeng
   tolerance.ph_reading_max = doc["ph_reading"][1];
 }
 
-void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+void changeEC(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -156,8 +214,8 @@ void changeEC(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLeng
   tolerance.ec_reading_max = doc["ec_reading"][1]; 
 }
 
-void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+void changeHUM(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -170,8 +228,8 @@ void changeHUM(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLen
   tolerance.air_humidity_max = doc["air_humidity"][1];
 }
 
-void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLength) {
-
+void changeTEMP(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<48> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
 
   if (error) {
@@ -183,10 +241,7 @@ void changeTEMP(StaticJsonDocument<48> doc,  byte* payload, unsigned int inputLe
   tolerance.air_temperature_min = doc["air_temperature"][0];
   tolerance.air_temperature_max = doc["air_temperature"][1];
 }
-
-/* TODO:
-    1.) initial 12mL for each nutrient and PH buffer
-*/
+/*-------------------------------------END OF CHANGE VALUE CODE BOCK-------------------------------------------*/
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -194,68 +249,85 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("] ");
   Serial.println("");
 
-  //newcrop callback routine
+  if(!primed){
+    if(!strcmp(topic, pumps_primed)){
+      if (!strncmp((char *)payload, "true", length)) {
+        primed =true;
+      }
+    }
+  }
+  //newcrop callback routine to assign tolerance
   if(!initialized){
     if(!strcmp(topic, command_new_crop)){
-      StaticJsonDocument<256> doc;
-      newCrop(doc, payload, length);
+      newCrop(payload, length);
     }
   }
-  //change value callback routines
+  //change value callback routines for tolerance change value after initialization
   if(initialized){
     if(!strcmp(topic, change_value_ph)){
-      StaticJsonDocument<48> doc;
-      changePH(doc, payload, length);
+      changePH(payload, length);
     }
     if(!strcmp(topic, change_value_ec)){
-      StaticJsonDocument<48> doc;
-      changeEC(doc, payload, length);
+      changeEC(payload, length);
     }
     if(!strcmp(topic, change_value_air_hum)){
-      StaticJsonDocument<48> doc;
-      changeHUM(doc, payload, length);
+      changeHUM(payload, length);
     }
     if(!strcmp(topic, change_value_air_temp)){
-      StaticJsonDocument<48> doc;
-      changeTEMP(doc, payload, length);
+      changeTEMP(payload, length);
     }
-  }
 
-  //if primetube command is recieved
-  if(!strcmp(topic, topic_init_pumps)){
-    StaticJsonDocument<16> doc;
-    deserializeJson(doc, payload, length);
-    if(!strcmp("1", doc["init_pump"])){
-      primePumps();
+    if(!strcmp(topic, manual_prime)){
+      primePumps(payload, length);
     }
-  }
 
-  // if harvest command is recieved
-  if(!strcmp(topic, harvest_command)){
-    StaticJsonDocument<16> doc;
-    deserializeJson(doc, payload, length);
-    if(!strcmp("1", doc["harvest"])){
-      initialized = false;
-      mqttClient.unsubscribe(change_value_ph);
-      mqttClient.unsubscribe(change_value_ec);
-      mqttClient.unsubscribe(change_value_air_hum);
-      mqttClient.unsubscribe(change_value_air_temp);
-      mqttClient.unsubscribe(topic_init_pumps);
-      mqttClient.subscribe(command_new_crop);
+    // if harvest command is recieved
+    if(!strcmp(topic, harvest_command)){
+      StaticJsonDocument<16> doc;
+      deserializeJson(doc, payload, length);
+      if(doc["harvest"] == true){
+        // reset initialized state and prime state
+        initialized = false;
+        primed = false;
+        // clear retained value of pumps_primed topic
+        mqttClient.publish(pumps_primed, "", true);
+        //turn all 12v relay connection
+        digitalWrite(RELAY_PIN8, HIGH);
+        digitalWrite(RELAY_PIN7, HIGH);
+        digitalWrite(RELAY_PIN6, HIGH);
+        digitalWrite(RELAY_PIN5, HIGH);
+        digitalWrite(RELAY_PIN4, HIGH);
+        digitalWrite(RELAY_PIN3, HIGH);
+        digitalWrite(RELAY_PIN2, HIGH);
+        digitalWrite(RELAY_PIN1, HIGH);
+        // unsubscribe to all commands except new_crop
+        mqttClient.unsubscribe(harvest_command);
+        mqttClient.unsubscribe(change_value_ph);
+        mqttClient.unsubscribe(change_value_ec);
+        mqttClient.unsubscribe(change_value_air_hum);
+        mqttClient.unsubscribe(change_value_air_temp);
+        mqttClient.unsubscribe(manual_prime);
+        //resubscribe to newcrop command
+        mqttClient.subscribe(command_new_crop);
+      }
     }
   }
 }
 
+//setup runce only once when the Arduinis turned on have been reset
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200); //for debug pruposes, this will print errors and info to the serial port
 
   waterPumpDelay.start(30000);    // pump 30 sec interval
   mqttDelay.start(5000);          // mqtt 5 sec send delay
-  phRoutineDelay.start(1800000);  //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(1800000);  //ec routine for pumping nutrients
+  phRoutineDelay.start(900000);   //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(900000);   //ec routine for pumping nutrients
 
+  //initialize ethernet parameters
+  ethClientSSL.setMutualAuthParams(mTLS);
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
+  // set pinmodes assignments for input and output
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
   pinMode(Contact_less_sensor,INPUT);
@@ -276,6 +348,7 @@ void setup() {
   pinMode(RELAY_PIN1, OUTPUT);
   digitalWrite(RELAY_PIN1, HIGH);
 
+  // initialize sensors and probes
   ph.begin();           //PH sensor
   ec.begin();           //EC sensor
   dht.begin();          //hum&temp sensor
@@ -286,32 +359,34 @@ void setup() {
     Serial.println("Didn't find Si1145");
     while (1);
   }
-
+  //set mqtt callback funtion (the part where "do this" when arduino receives mqtt from subscription)
   mqttClient.setCallback(callback);
 }
 
 void reconnect() {
-  // Loop until we're reconnected
+  // Loop until we're reconnected to the broker
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (mqttClient.connect("HYD-1")) {
+    if (mqttClient.connect("HYD-1", connection, 2, false, LWAT)) {
       Serial.println("connected");
-      // ...resubscribe
-      if (!initialized)
-      {
+      mqttClient.subscribe(pumps_primed);
+      //resubscribe to topics acording to state of initialization
+      if (!initialized){
         mqttClient.subscribe(command_new_crop);
       }
-      
       if(initialized){
         mqttClient.subscribe(change_value_ph);
         mqttClient.subscribe(change_value_ec);
         mqttClient.subscribe(change_value_air_hum);
         mqttClient.subscribe(change_value_air_temp);
         mqttClient.subscribe(harvest_command);
+        mqttClient.subscribe(manual_prime);
       }
+      //publish connection status
       mqttClient.publish(connection,"connected");
-    } else {
+    } 
+    else { //if connection failed print to Serial of the reason of failure then try again
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
       Serial.println(" try again in 5 seconds");
@@ -375,7 +450,7 @@ float ph_reading() {
   float phValue;
   float phVoltage;
   float temperature;
-  temperature = water_temperature();      // read your temperature sensor to execute temperature compensation
+  temperature = water_temperature();           // read your temperature sensor to execute temperature compensation
   phVoltage = analogRead(PH_PIN)/1024.0*3500;  // read the voltage
   phValue = ph.readPH(phVoltage,temperature);  // convert voltage to pH with temperature compensation
   return (phValue);
@@ -386,7 +461,7 @@ float ec_reading(){
   float ecValue;
   float ecVoltage;
   ecVoltage = analogRead(EC_PIN)/1024.0*3500;   // read the voltage
-  temperature = water_temperature();         // read your temperature sensor to execute temperature compensation
+  temperature = water_temperature();            // read your temperature sensor to execute temperature compensation
   ecValue =  ec.readEC(ecVoltage,temperature);  // convert voltage to EC with temperature compensation
   return (ecValue);
 }
@@ -422,33 +497,33 @@ void run_fan(float hum_value, float temp_value) {
   }
 }
 
+// the ph actuation
 void phCheck() {
   float ph_value = ph_reading();
   if(tolerance.ph_reading_min > ph_value){
-    phUPDelay.start((1250/7)*10);
+    phUPDelay.start((1250/7)*10); //time for 0.1mL *10 = 1mL
     actuatePeristaltic("on", 1);
   }
   if(tolerance.ph_reading_max < ph_value){
-    phDOWNDelay.start((156.25)*10);
+    phDOWNDelay.start((156.25)*10); // time for 0.1mL * 10 = 1mL
     actuatePeristaltic("on", 2);
   }
 }
 
+//the ec actuation
 void ecCheck() {
   float ec_value = ec_reading();
   if(tolerance.ec_reading_min > ec_value){
     nutrientCDelay.start((2500/13)*10);
-    Serial.print("pump 3 on!"); //debugging note
     actuatePeristaltic("on", 3);
     nutrientBDelay.start((1250/9)*10);
-    Serial.print("pump 4 on!"); //debugging note
     actuatePeristaltic("on", 4);
     nutrientADelay.start((2500/17)*10);
-    Serial.print("pump 5 on!"); //debugging note
     actuatePeristaltic("on", 5);
   }
 }
 
+//function that returns the air humidity from the sensor reading
 float air_humidity() {
   float hum = dht.readHumidity();
   if (isnan(hum)) 
@@ -458,6 +533,7 @@ float air_humidity() {
   return (hum);
 }
 
+//function that returns the air temp from the sensor reading
 float air_temperature(){
   float temp = dht.readTemperature();
   if (isnan(temp)) 
@@ -474,25 +550,26 @@ void loop() {
   mqttClient.loop();
 
   if(initialized){
-    light_check(infrared_light());
-    run_fan(air_humidity(), air_temperature());
+    light_check(infrared_light());                //actuate growlight depending on light condition
+    run_fan(air_humidity(), air_temperature());   //actuate fan depending on temp or humidity
 
+    //20min check for ph level and add buffers acordingly
     if(phRoutineDelay.justFinished()){
       phCheck();
       phRoutineDelay.repeat();
     }
-
+    //20min check for ec level and add nutrients acordingly
     if(ecRoutineDelay.justFinished()){
       ecCheck();
       ecRoutineDelay.repeat();
     }
-
+    // char buffer container for json data to be sent
     char buffer[256];
     if(mqttDelay.justFinished()){
       //sensor data json
       StaticJsonDocument<128> sensor_data;
       StaticJsonDocument<64> probe_data;
-
+      //sensor data being deserialized to json
       sensor_data["air_humidity"] = air_humidity();
       sensor_data["air_temperature"] = air_temperature();
       sensor_data["contactless_liquid_level"] = contactless_liquid_level();
@@ -504,7 +581,7 @@ void loop() {
       probe_data["tds_reading"] = tds_reading();
       probe_data["ec_reading"] = ec_reading();
       probe_data["ph_reading"] = ph_reading();
-      //publish data
+      // serialize data and publish data
       size_t sens_dat = serializeJson(sensor_data, buffer);
       mqttClient.publish(topic_sensor_data, buffer, sens_dat);
       size_t probe_dat = serializeJson(probe_data, buffer);
@@ -512,11 +589,11 @@ void loop() {
       mqttDelay.repeat();
     }
 
-    // disabled for testing purposes(working)
-    // if(waterPumpDelay.justFinished()){
-    //   waterPumpActuate();
-    //   waterPumpDelay.repeat();
-    // }
+    // water sprinkler actuation timed for 30sec off and on
+    if(waterPumpDelay.justFinished()){
+      waterPumpActuate();
+      waterPumpDelay.repeat();
+    }
   }
 
   //Ppump turn off
