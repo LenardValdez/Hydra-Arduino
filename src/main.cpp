@@ -389,6 +389,7 @@ void reconnect() {
     if (mqttClient.connect("HYD-1", connection, 2, false, LWAT)) {
       Serial.println("connected");
       mqttClient.subscribe(pumps_primed);
+      mqttClient.subscribe(EC_PH_time);
       //resubscribe to topics acording to state of initialization
       if (!initialized){
         mqttClient.subscribe(command_new_crop);
