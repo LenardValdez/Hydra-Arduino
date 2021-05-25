@@ -22,7 +22,7 @@ millisDelay mqttDelay;
 millisDelay phUPDelay, phDOWNDelay, nutrientCDelay, nutrientBDelay, nutrientADelay;
 
 //routine check for EC and PH level
-millisDelay phRoutineDelay, ecRoutineDelay;
+millisDelay phRoutineDelay, ecRoutineDelay, ECPHFirstRunDelay;
 
 //turn on and off peristaltic pump based on string "on" or "off" and the pump number
 void actuatePeristaltic(String actuateType, int pump_number){
@@ -179,11 +179,18 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.subscribe(change_value_air_hum);
   mqttClient.subscribe(change_value_air_temp);
   mqttClient.subscribe(harvest_command);
-  mqttClient.unsubscribe(command_new_crop);
   mqttClient.subscribe(manual_prime);
+  mqttClient.subscribe(EC_PH_time);
+  mqttClient.unsubscribe(command_new_crop);
   mqttClient.unsubscribe(pumps_primed);
   //change intialization state
   initialized = true;
+
+  //self_note not frist run
+  if(first_run){
+    mqttClient.publish(EC_PH_time, "false", true);
+    ECPHFirstRunDelay.start(1200000); //1st run wait for 20min for psuedo reservoir to fillup
+  }
 }
 //changing the value of the tolerance codeblock
 /*---------------------------------------START OF CHANGE VALUE CODE BLOCK-----------------------------------------*/
@@ -257,6 +264,15 @@ void callback(char* topic, byte* payload, unsigned int length) {
       }
     }
   }
+
+  if(first_run){
+    if(!strcmp(topic, EC_PH_time)){
+      if(!strncmp((char *)payload, "false", length)){
+        first_run = false;
+      }
+    }
+  }
+
   //newcrop callback routine to assign tolerance
   if(!initialized){
     if(!strcmp(topic, command_new_crop)){
@@ -292,6 +308,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         primed = false;
         // clear retained value of pumps_primed topic
         mqttClient.publish(pumps_primed, "", true);
+        mqttClient.publish(EC_PH_time, "", true);
         //turn all 12v relay connection
         digitalWrite(RELAY_PIN8, HIGH);
         digitalWrite(RELAY_PIN7, HIGH);
@@ -308,6 +325,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         mqttClient.unsubscribe(change_value_air_hum);
         mqttClient.unsubscribe(change_value_air_temp);
         mqttClient.unsubscribe(manual_prime);
+        mqttClient.unsubscribe(EC_PH_time);
         //resubscribe to newcrop command
         mqttClient.subscribe(command_new_crop);
       }
@@ -319,10 +337,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void setup() {
   Serial.begin(115200); //for debug pruposes, this will print errors and info to the serial port
 
-  waterPumpDelay.start(30000);    // pump 30 sec interval
-  mqttDelay.start(5000);          // mqtt 5 sec send delay
-  phRoutineDelay.start(900000);   //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(900000);   //ec routine for pumping nutrients
+  waterPumpDelay.start(30000);      // pump 30 sec interval
+  mqttDelay.start(5000);            // mqtt 5 sec send delay
+  phRoutineDelay.start(900000);     //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(900000);     //ec routine for pumping nutrients
 
   //initialize ethernet parameters
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
@@ -553,16 +571,20 @@ void loop() {
     light_check(infrared_light());                //actuate growlight depending on light condition
     run_fan(air_humidity(), air_temperature());   //actuate fan depending on temp or humidity
 
-    //20min check for ph level and add buffers acordingly
-    if(phRoutineDelay.justFinished()){
-      phCheck();
-      phRoutineDelay.repeat();
+    //check if first run if 1st run 
+    if(!first_run || ECPHFirstRunDelay.justFinished()){
+      //20min check for ph level and add buffers acordingly
+      if(phRoutineDelay.justFinished()){
+        phCheck();
+        phRoutineDelay.repeat();
+      }
+      //20min check for ec level and add nutrients acordingly
+      if(ecRoutineDelay.justFinished()){
+        ecCheck();
+        ecRoutineDelay.repeat();
+      }
     }
-    //20min check for ec level and add nutrients acordingly
-    if(ecRoutineDelay.justFinished()){
-      ecCheck();
-      ecRoutineDelay.repeat();
-    }
+    
     // char buffer container for json data to be sent
     char buffer[256];
     if(mqttDelay.justFinished()){

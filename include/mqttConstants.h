@@ -19,8 +19,11 @@ const char* change_value_air_hum = "hyd-1/commands/air_humidity/";
 const char* change_value_air_temp = "hyd-1/commands/air_temperature/";
 const char* harvest_command = "hyd-1/commands/harvest/";
 const char* connection = "hyd-1/connection/";
-const char* pumps_primed = "hyd-1/self/pumps_primed";
 const char* manual_prime = "hyd-1/commands/manual_prime/";
+
+//system self note
+const char* pumps_primed = "hyd-1/self/pumps_primed";
+const char* EC_PH_time = "hyd-1/self/first_run";
 
 //Last will and testament of disconnected Pod
 const char* LWAT = "disconnected";

@@ -1,6 +1,7 @@
 //init indication
 bool initialized = false;
 bool primed = false;
+bool first_run = true;
 
 //Global var struct   
 struct constants
