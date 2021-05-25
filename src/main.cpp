@@ -74,6 +74,7 @@ void actuatePeristaltic(String actuateType, int pump_number){
   }
 }
 
+//manual control of prming the peristaltic pump
 void primePumps(byte* payload, unsigned int inputLength) {
   StaticJsonDocument<128> doc;
   DeserializationError error = deserializeJson(doc, payload, inputLength);
@@ -324,7 +325,6 @@ void setup() {
   ecRoutineDelay.start(900000);   //ec routine for pumping nutrients
 
   //initialize ethernet parameters
-  ethClientSSL.setMutualAuthParams(mTLS);
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
   // set pinmodes assignments for input and output
