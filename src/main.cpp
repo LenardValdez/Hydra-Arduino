@@ -74,6 +74,19 @@ void actuatePeristaltic(String actuateType, int pump_number){
   }
 }
 
+void primePumps() {
+  phUPDelay.start(40000/7);
+  actuatePeristaltic("on", 1);
+  phDOWNDelay.start(5625);
+  actuatePeristaltic("on", 2);
+  nutrientCDelay.start(7307.6923);
+  actuatePeristaltic("on", 3);
+  nutrientBDelay.start(5555.5555);
+  actuatePeristaltic("on", 4);
+  nutrientADelay.start(5735.2941);
+  actuatePeristaltic("on", 5);
+}
+
 //water pump/sprinkler actuation
 void waterPumpActuate(){
   if(digitalRead(RELAY_PIN8) == HIGH){
@@ -269,6 +282,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
         mqttClient.subscribe(command_new_crop);
       }
     }
+
+    if(!strcmp(topic, manual_prime)){
+      if (!strncmp((char *)payload, "true", length)) {
+        primePumps();
+      }
+    }
+
   }
 }
 
