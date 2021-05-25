@@ -9,12 +9,7 @@
 #include <Wire.h>
 #include <OneWire.h>
 #include <ArduinoJson.h>
-// #include <Ethernet.h>
-
-//custom ethernet lib
-#include <SPI.h>
-#include "EthernetLarge.h"
-
+#include <Ethernet.h>
 #include <PubSubClient.h>
 #include <SPI.h>
 #include <millisDelay.h>
