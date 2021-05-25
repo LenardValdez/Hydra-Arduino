@@ -74,17 +74,39 @@ void actuatePeristaltic(String actuateType, int pump_number){
   }
 }
 
-void primePumps() {
-  phUPDelay.start(40000/7);
-  actuatePeristaltic("on", 1);
-  phDOWNDelay.start(5625);
-  actuatePeristaltic("on", 2);
-  nutrientCDelay.start(7307.6923);
-  actuatePeristaltic("on", 3);
-  nutrientBDelay.start(5555.5555);
-  actuatePeristaltic("on", 4);
-  nutrientADelay.start(5735.2941);
-  actuatePeristaltic("on", 5);
+void primePumps(byte* payload, unsigned int inputLength) {
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, payload, inputLength);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  if(doc["manual_prime"] == true){
+    JsonArray pump_select = doc["pump_select"];
+    if(pump_select[0] == true){
+      phUPDelay.start(40000/7);
+      actuatePeristaltic("on", 1);
+    }
+    if(pump_select[1] == true){
+      phDOWNDelay.start(5625);
+      actuatePeristaltic("on", 2);
+    }
+    if(pump_select[2] == true){
+      nutrientCDelay.start(7307.6923);
+      actuatePeristaltic("on", 3);
+    }
+    if(pump_select[3] == true){
+      nutrientBDelay.start(5555.5555);
+      actuatePeristaltic("on", 4);
+    }
+    if(pump_select[4] == true){
+      nutrientADelay.start(5735.2941);
+      actuatePeristaltic("on", 5);
+    }
+  }
 }
 
 //water pump/sprinkler actuation
@@ -111,6 +133,7 @@ void newCrop(byte* payload, unsigned int inputLength) {
 
   //naming is to be implemented
   // const char* pod_name = doc["pod_name"]; // "hyd-1"
+
   tolerance.air_humidity_min = doc["air_humidity"][0];
   tolerance.air_humidity_max = doc["air_humidity"][1];
 
@@ -156,6 +179,7 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.subscribe(change_value_air_temp);
   mqttClient.subscribe(harvest_command);
   mqttClient.unsubscribe(command_new_crop);
+  mqttClient.subscribe(manual_prime);
   mqttClient.unsubscribe(pumps_primed);
   //change intialization state
   initialized = true;
@@ -253,6 +277,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
       changeTEMP(payload, length);
     }
 
+    if(!strcmp(topic, manual_prime)){
+      primePumps(payload, length);
+    }
+
     // if harvest command is recieved
     if(!strcmp(topic, harvest_command)){
       StaticJsonDocument<16> doc;
@@ -278,23 +306,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
         mqttClient.unsubscribe(change_value_ec);
         mqttClient.unsubscribe(change_value_air_hum);
         mqttClient.unsubscribe(change_value_air_temp);
+        mqttClient.unsubscribe(manual_prime);
         //resubscribe to newcrop command
         mqttClient.subscribe(command_new_crop);
       }
     }
-
-    if(!strcmp(topic, manual_prime)){
-      if (!strncmp((char *)payload, "true", length)) {
-        primePumps();
-      }
-    }
-
   }
 }
 
 //setup runce only once when the Arduinis turned on have been reset
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200); //for debug pruposes, this will print errors and info to the serial port
 
   waterPumpDelay.start(30000);    // pump 30 sec interval
   mqttDelay.start(5000);          // mqtt 5 sec send delay
@@ -359,6 +381,7 @@ void reconnect() {
         mqttClient.subscribe(change_value_air_hum);
         mqttClient.subscribe(change_value_air_temp);
         mqttClient.subscribe(harvest_command);
+        mqttClient.subscribe(manual_prime);
       }
       //publish connection status
       mqttClient.publish(connection,"connected");
