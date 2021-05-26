@@ -3,7 +3,7 @@
 #include "DFRobot_EC.h"       // Custom EC level library modified for Non Uno boards
 
 //Arduino Libraries
-#include <Adafruit_SI1145.h>    //Original UV IR and Visible light Sensor Library
+#include <Adafruit_SI1145.h>    //UV IR and Visible light Sensor Library
 #include <DHT.h>                //Humidity and air temp sensor library
 #include <DallasTemperature.h>  //Temprature probe sensor library
 #include <Wire.h>
