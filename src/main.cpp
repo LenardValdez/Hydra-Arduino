@@ -315,7 +315,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         // reset initialized state and prime state
         initialized = false;
         primed = false;
-        // clear retained value of pumps_primed topic
+        // clear retained value of self-notes topic
         mqttClient.publish(pumps_primed, "", true);
         mqttClient.publish(EC_PH_time, "", true);
         //turn all 12v relay connection
