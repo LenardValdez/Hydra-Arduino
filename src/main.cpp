@@ -120,6 +120,15 @@ void waterPumpActuate(){
   }
 }
 
+void ph_ec_actuationRun(){
+  phRoutineDelay.start(900000);     //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(900000);     //ec routine for pumping nutrients
+}
+
+void firstRun() {
+  ECPHFirstRunDelay.start(900000);
+}
+
 //new crop routine for initializing new crop to the Pod
 void newCrop(byte* payload, unsigned int inputLength) {
 
@@ -148,7 +157,6 @@ void newCrop(byte* payload, unsigned int inputLength) {
   tolerance.ph_reading_max = doc["ph_reading"][1];
 
   //check if prime tubes is true if not just pump 12mL of nutrients(A B C)
-
   if(!primed){
     if(doc["init_pump"] == true){
       phUPDelay.start(40000/7);
@@ -185,11 +193,12 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.unsubscribe(pumps_primed);
   //change intialization state
   initialized = true;
-
-  //self_note not frist run
-  if(first_run){
+  if(!first_run){
+    ph_ec_actuationRun();
+  }
+  else {
+    firstRun();
     mqttClient.publish(EC_PH_time, "false", true);
-    ECPHFirstRunDelay.start(1200000); //1st run wait for 20min for psuedo reservoir to fillup
   }
 }
 //changing the value of the tolerance codeblock
@@ -260,14 +269,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if(!primed){
     if(!strcmp(topic, pumps_primed)){
       if (!strncmp((char *)payload, "true", length)) {
-        primed =true;
+        primed = true;
       }
     }
   }
 
   if(first_run){
     if(!strcmp(topic, EC_PH_time)){
-      if(!strncmp((char *)payload, "false", length)){
+      if (!strncmp((char *)payload, "false", length)) {
         first_run = false;
       }
     }
@@ -339,8 +348,6 @@ void setup() {
 
   waterPumpDelay.start(30000);      // pump 30 sec interval
   mqttDelay.start(5000);            // mqtt 5 sec send delay
-  phRoutineDelay.start(900000);     //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(900000);     //ec routine for pumping nutrients
 
   //initialize ethernet parameters
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
@@ -572,18 +579,19 @@ void loop() {
     light_check(infrared_light());                //actuate growlight depending on light condition
     run_fan(air_humidity(), air_temperature());   //actuate fan depending on temp or humidity
 
-    //check if first run if 1st run 
-    if(!first_run || ECPHFirstRunDelay.justFinished()){
-      //20min check for ph level and add buffers acordingly
-      if(phRoutineDelay.justFinished()){
-        phCheck();
-        phRoutineDelay.repeat();
-      }
-      //20min check for ec level and add nutrients acordingly
-      if(ecRoutineDelay.justFinished()){
-        ecCheck();
-        ecRoutineDelay.repeat();
-      }
+    if(ECPHFirstRunDelay.justFinished()){
+      ph_ec_actuationRun();
+    }
+
+    //20min check for ph level and add buffers acordingly
+    if(phRoutineDelay.justFinished()){
+      phCheck();
+      phRoutineDelay.repeat();
+    }
+    //20min check for ec level and add nutrients acordingly
+    if(ecRoutineDelay.justFinished()){
+      ecCheck();
+      ecRoutineDelay.repeat();
     }
     
     // char buffer container for json data to be sent
