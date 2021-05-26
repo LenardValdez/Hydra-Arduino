@@ -8,8 +8,8 @@ IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 
 // MQTT server IP and topic subscription
-// const char* server = "192.168.1.65";
-const char* server = "mqtts.HYDRA-Server.com";
+const char* server = "192.168.1.65";
+// const char* server = "mqtts.HYDRA-Server.com";
 const char* topic_sensor_data = "hyd-1/sensor_data/";
 const char* topic_probe_data = "hyd-1/probe_data/";
 const char* command_new_crop = "hyd-1/commands/new_crop/";
