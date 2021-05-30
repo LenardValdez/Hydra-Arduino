@@ -342,7 +342,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-//setup runce only once when the Arduinis turned on have been reset
+//setup run once only once when the Arduinis turned on have been reset
 void setup() {
   Serial.begin(115200); //for debug pruposes, this will print errors and info to the serial port
 
@@ -356,7 +356,7 @@ void setup() {
   // set pinmodes assignments for input and output
   pinMode(Float_Switch_Low, INPUT_PULLUP);
   pinMode(Float_Switch_High, INPUT_PULLUP);
-  pinMode(Contact_less_sensor,INPUT);
+  pinMode(Contact_less_sensor,INPUT_PULLUP);
   pinMode(RELAY_PIN8, OUTPUT);
   digitalWrite(RELAY_PIN8, HIGH);
   pinMode(RELAY_PIN7, OUTPUT);
