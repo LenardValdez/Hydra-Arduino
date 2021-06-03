@@ -1,3 +1,6 @@
+#ifndef __PIN_CONSTANTS_H__
+#define __PIN_CONSTANTS_H__
+
 //Pins of Analog sensors
 #define PH_PIN A1           //PH Level Sensor
 #define EC_PIN A2           //EC Level Sensor
@@ -20,3 +23,4 @@ const int RELAY_PIN5 = 30;      //peristaltic pump 1 (left most)
 const int RELAY_PIN6 = 32;      //Fan
 const int RELAY_PIN7 = 34;      //Grow light
 const int RELAY_PIN8 = 36;      //Water pump
+#endif // __PIN_CONSTANTS_H__

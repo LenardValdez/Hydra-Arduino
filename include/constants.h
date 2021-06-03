@@ -1,3 +1,5 @@
+#ifndef __CONSTANTS_H__
+#define __CONSTANTS_H__
 //init indication
 bool initialized = false;
 bool primed = false;
@@ -19,3 +21,6 @@ struct constants
     float ph_reading_min;
     float ph_reading_max;
 } tolerance;
+
+
+#endif // __CONSTANTS_H__

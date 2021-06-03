@@ -1,3 +1,6 @@
+#ifndef __HEADER_H__
+#define __HEADER_H__
+
 //custom Libraries
 #include "DFRobot_PH.h"       // Custom PH level Library modified for Non Uno boards
 #include "DFRobot_EC.h"       // Custom EC level library modified for Non Uno boards
@@ -14,3 +17,4 @@
 #include <SPI.h>
 #include <millisDelay.h>
 #include <SSLClient.h>
+#endif // __HEADER_H__
