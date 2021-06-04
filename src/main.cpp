@@ -342,53 +342,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-//setup run once only once when the Arduinis turned on have been reset
-void setup() {
-  Serial.begin(115200); //for debug pruposes, this will print errors and info to the serial port
-
-  waterPumpDelay.start(30000);      // pump 30 sec interval
-  mqttDelay.start(5000);            // mqtt 5 sec send delay
-
-  //initialize ethernet parameters
-  ethClientSSL.setMutualAuthParams(mTLS);
-  Ethernet.begin(mac, ip, myDns, gateway, subnet);
-
-  // set pinmodes assignments for input and output
-  pinMode(Float_Switch_Low, INPUT_PULLUP);
-  pinMode(Float_Switch_High, INPUT_PULLUP);
-  pinMode(Contact_less_sensor,INPUT_PULLUP);
-  pinMode(RELAY_PIN8, OUTPUT);
-  digitalWrite(RELAY_PIN8, HIGH);
-  pinMode(RELAY_PIN7, OUTPUT);
-  digitalWrite(RELAY_PIN7, HIGH);
-  pinMode(RELAY_PIN6, OUTPUT);
-  digitalWrite(RELAY_PIN6, HIGH);
-  pinMode(RELAY_PIN5, OUTPUT);
-  digitalWrite(RELAY_PIN5, HIGH);
-  pinMode(RELAY_PIN4, OUTPUT);
-  digitalWrite(RELAY_PIN4, HIGH);
-  pinMode(RELAY_PIN3, OUTPUT);
-  digitalWrite(RELAY_PIN3, HIGH);
-  pinMode(RELAY_PIN2, OUTPUT);
-  digitalWrite(RELAY_PIN2, HIGH);
-  pinMode(RELAY_PIN1, OUTPUT);
-  digitalWrite(RELAY_PIN1, HIGH);
-
-  // initialize sensors and probes
-  ph.begin();           //PH sensor
-  ec.begin();           //EC sensor
-  dht.begin();          //hum&temp sensor
-  probeSensor.begin();  //probe sensor
-
-  //Check UV/IR/Vis light sensor readiness for I2C
-  if (! uv.begin(&Wire1)) {
-    Serial.println("Didn't find Si1145");
-    while (1);
-  }
-  //set mqtt callback funtion (the part where "do this" when arduino receives mqtt from subscription)
-  mqttClient.setCallback(callback);
-}
-
 void reconnect() {
   // Loop until we're reconnected to the broker
   while (!mqttClient.connected()) {
@@ -568,6 +521,53 @@ float air_temperature(){
     Serial.println("Failed to read from DHT");
   }
   return (temp);
+}
+
+//setup run once only once when the Arduinis turned on have been reset
+void setup() {
+  Serial.begin(115200); //for debug pruposes, this will print errors and info to the serial port
+
+  waterPumpDelay.start(30000);      // pump 30 sec interval
+  mqttDelay.start(5000);            // mqtt 5 sec send delay
+
+  //initialize ethernet parameters
+  ethClientSSL.setMutualAuthParams(mTLS);
+  Ethernet.begin(mac, ip, myDns, gateway, subnet);
+
+  // set pinmodes assignments for input and output
+  pinMode(Float_Switch_Low, INPUT_PULLUP);
+  pinMode(Float_Switch_High, INPUT_PULLUP);
+  pinMode(Contact_less_sensor,INPUT_PULLUP);
+  pinMode(RELAY_PIN8, OUTPUT);
+  digitalWrite(RELAY_PIN8, HIGH);
+  pinMode(RELAY_PIN7, OUTPUT);
+  digitalWrite(RELAY_PIN7, HIGH);
+  pinMode(RELAY_PIN6, OUTPUT);
+  digitalWrite(RELAY_PIN6, HIGH);
+  pinMode(RELAY_PIN5, OUTPUT);
+  digitalWrite(RELAY_PIN5, HIGH);
+  pinMode(RELAY_PIN4, OUTPUT);
+  digitalWrite(RELAY_PIN4, HIGH);
+  pinMode(RELAY_PIN3, OUTPUT);
+  digitalWrite(RELAY_PIN3, HIGH);
+  pinMode(RELAY_PIN2, OUTPUT);
+  digitalWrite(RELAY_PIN2, HIGH);
+  pinMode(RELAY_PIN1, OUTPUT);
+  digitalWrite(RELAY_PIN1, HIGH);
+
+  // initialize sensors and probes
+  ph.begin();           //PH sensor
+  ec.begin();           //EC sensor
+  dht.begin();          //hum&temp sensor
+  probeSensor.begin();  //probe sensor
+
+  //Check UV/IR/Vis light sensor readiness for I2C
+  if (! uv.begin(&Wire1)) {
+    Serial.println("Didn't find Si1145");
+    while (1);
+  }
+  //set mqtt callback funtion (the part where "do this" when arduino receives mqtt from subscription)
+  mqttClient.setCallback(callback);
 }
 
 void loop() {
