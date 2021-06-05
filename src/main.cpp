@@ -121,12 +121,12 @@ void waterPumpActuate(){
 }
 
 void ph_ec_actuationRun(){
-  phRoutineDelay.start(900000);     //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(900000);     //ec routine for pumping nutrients
+  phRoutineDelay.start(300000);     //ph check routine for pumping ph up and down
+  ecRoutineDelay.start(300000);     //ec routine for pumping nutrients
 }
 
 void firstRun() {
-  ECPHFirstRunDelay.start(900000);
+  ECPHFirstRunDelay.start(300000);
 }
 
 //new crop routine for initializing new crop to the Pod
