@@ -178,6 +178,7 @@ void newCrop(byte* payload, unsigned int inputLength) {
       actuatePeristaltic("on", 4);
       nutrientADelay.start(((2500/17)*10)*12);
       actuatePeristaltic("on", 5);
+      mqttClient.publish(pumps_primed, "true", true);
     }
   }
 
