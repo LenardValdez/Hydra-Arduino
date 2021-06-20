@@ -121,12 +121,12 @@ void waterPumpActuate(){
 }
 
 void ph_ec_actuationRun(){
-  phRoutineDelay.start(300000);     //ph check routine for pumping ph up and down
-  ecRoutineDelay.start(300000);     //ec routine for pumping nutrients
+  phRoutineDelay.start(600000);     //ph check routine for pumping ph up and down (10min)
+  ecRoutineDelay.start(600000);     //ec routine for pumping nutrients (10min)
 }
 
 void firstRun() {
-  ECPHFirstRunDelay.start(300000);
+  ECPHFirstRunDelay.start(300000); //5min wait time to fill up the psuedo reservoir
 }
 
 //new crop routine for initializing new crop to the Pod
@@ -482,11 +482,11 @@ void run_fan(float hum_value, float temp_value) {
 void phCheck() {
   float ph_value = ph_reading();
   if(tolerance.ph_reading_min > ph_value){
-    phUPDelay.start((1250/7)*10); //time for 0.1mL *10 = 1mL
+    phUPDelay.start((1250/7)*20); //time for 0.1mL *20 = 2mL
     actuatePeristaltic("on", 1);
   }
   if(tolerance.ph_reading_max < ph_value){
-    phDOWNDelay.start((156.25)*10); // time for 0.1mL * 10 = 1mL
+    phDOWNDelay.start((156.25)*20); // time for 0.1mL * 20 = 2mL
     actuatePeristaltic("on", 2);
   }
 }
@@ -495,11 +495,11 @@ void phCheck() {
 void ecCheck() {
   float ec_value = ec_reading();
   if(tolerance.ec_reading_min > ec_value){
-    nutrientCDelay.start((2500/13)*10);
+    nutrientCDelay.start((2500/13)*20);
     actuatePeristaltic("on", 3);
-    nutrientBDelay.start((1250/9)*10);
+    nutrientBDelay.start((1250/9)*20);
     actuatePeristaltic("on", 4);
-    nutrientADelay.start((2500/17)*10);
+    nutrientADelay.start((2500/17)*20);
     actuatePeristaltic("on", 5);
   }
 }
