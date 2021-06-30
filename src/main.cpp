@@ -600,15 +600,12 @@ void loop() {
     char buffer[256];
     if(mqttDelay.justFinished()){
       //sensor data json
-      StaticJsonDocument<128> sensor_data;
+      StaticJsonDocument<32> sensor_data;
       StaticJsonDocument<64> probe_data;
       //sensor data being deserialized to json
       sensor_data["air_humidity"] = air_humidity();
       sensor_data["air_temperature"] = air_temperature();
       sensor_data["contactless_liquid_level"] = contactless_liquid_level();
-      sensor_data["uv_light"] = uv_light();
-      sensor_data["infrared_light"] = infrared_light();
-      sensor_data["visible_light"] = visible_light();
       sensor_data["reservoir_level"] = reservoir_level();
       probe_data["water_temperature"] = water_temperature();
       probe_data["tds_reading"] = tds_reading();
