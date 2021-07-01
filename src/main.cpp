@@ -190,6 +190,7 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.subscribe(manual_prime);
   mqttClient.subscribe(EC_PH_time);
   mqttClient.unsubscribe(command_new_crop);
+  mqttClient.unsubscribe(pumps_primed);
   //change intialization state
   initialized = true;
   if(!first_run){
@@ -315,6 +316,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         initialized = false;
         primed = false;
         // clear retained value of self-notes topic
+        mqttClient.publish(pumps_primed, "", true);
         mqttClient.publish(EC_PH_time, "", true);
         //turn all 12v relay connection
         digitalWrite(RELAY_PIN8, HIGH);
