@@ -189,7 +189,6 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.subscribe(harvest_command);
   mqttClient.subscribe(manual_prime);
   mqttClient.subscribe(EC_PH_time);
-  mqttClient.subscribe(pumps_primed);
   mqttClient.unsubscribe(command_new_crop);
   //change intialization state
   initialized = true;
