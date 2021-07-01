@@ -169,7 +169,6 @@ void newCrop(byte* payload, unsigned int inputLength) {
       actuatePeristaltic("on", 4);
       nutrientADelay.start(397500/17);
       actuatePeristaltic("on", 5);
-      mqttClient.publish(pumps_primed, "true", true);
     }
     if(doc["init_pump"] == false){
       nutrientCDelay.start(((2500/13)*10)*12);
@@ -178,8 +177,8 @@ void newCrop(byte* payload, unsigned int inputLength) {
       actuatePeristaltic("on", 4);
       nutrientADelay.start(((2500/17)*10)*12);
       actuatePeristaltic("on", 5);
-      mqttClient.publish(pumps_primed, "true", true);
     }
+    mqttClient.publish(pumps_primed, "true", true);
   }
 
   //subscribe to change value topics and unsubscribe to new crop for protection of reinitializing
@@ -190,8 +189,8 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.subscribe(harvest_command);
   mqttClient.subscribe(manual_prime);
   mqttClient.subscribe(EC_PH_time);
+  mqttClient.subscribe(pumps_primed);
   mqttClient.unsubscribe(command_new_crop);
-  mqttClient.unsubscribe(pumps_primed);
   //change intialization state
   initialized = true;
   if(!first_run){
@@ -317,7 +316,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
         initialized = false;
         primed = false;
         // clear retained value of self-notes topic
-        mqttClient.publish(pumps_primed, "", true);
         mqttClient.publish(EC_PH_time, "", true);
         //turn all 12v relay connection
         digitalWrite(RELAY_PIN8, HIGH);
@@ -600,7 +598,7 @@ void loop() {
     char buffer[256];
     if(mqttDelay.justFinished()){
       //sensor data json
-      StaticJsonDocument<32> sensor_data;
+      StaticJsonDocument<64> sensor_data;
       StaticJsonDocument<64> probe_data;
       //sensor data being deserialized to json
       sensor_data["air_humidity"] = air_humidity();
