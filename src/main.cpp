@@ -531,7 +531,7 @@ void setup() {
   mqttDelay.start(5000);            // mqtt 5 sec send delay
 
   //initialize ethernet parameters
-  ethClientSSL.setMutualAuthParams(mTLS);
+  // ethClientSSL.setMutualAuthParams(mTLS);
   Ethernet.begin(mac, ip, myDns, gateway, subnet);
 
   // set pinmodes assignments for input and output
