@@ -182,12 +182,12 @@ void newCrop(byte* payload, unsigned int inputLength) {
   }
 
   //subscribe to change value topics and unsubscribe to new crop for protection of reinitializing
-  mqttClient.subscribe(change_value_ph);
-  mqttClient.subscribe(change_value_ec);
-  mqttClient.subscribe(change_value_air_hum);
-  mqttClient.subscribe(change_value_air_temp);
-  mqttClient.subscribe(harvest_command);
-  mqttClient.subscribe(manual_prime);
+  mqttClient.subscribe(change_value_ph, 1);
+  mqttClient.subscribe(change_value_ec, 1);
+  mqttClient.subscribe(change_value_air_hum, 1);
+  mqttClient.subscribe(change_value_air_temp), 1;
+  mqttClient.subscribe(harvest_command, 1);
+  mqttClient.subscribe(manual_prime, 1);
   mqttClient.subscribe(EC_PH_time);
   mqttClient.unsubscribe(command_new_crop);
   mqttClient.unsubscribe(pumps_primed);
@@ -336,7 +336,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         mqttClient.unsubscribe(manual_prime);
         mqttClient.unsubscribe(EC_PH_time);
         //resubscribe to newcrop command
-        mqttClient.subscribe(command_new_crop);
+        mqttClient.subscribe(command_new_crop, 1);
       }
     }
   }
@@ -353,15 +353,15 @@ void reconnect() {
       mqttClient.subscribe(EC_PH_time);
       //resubscribe to topics acording to state of initialization
       if (!initialized){
-        mqttClient.subscribe(command_new_crop);
+        mqttClient.subscribe(command_new_crop, 1);
       }
       if(initialized){
-        mqttClient.subscribe(change_value_ph);
-        mqttClient.subscribe(change_value_ec);
-        mqttClient.subscribe(change_value_air_hum);
-        mqttClient.subscribe(change_value_air_temp);
-        mqttClient.subscribe(harvest_command);
-        mqttClient.subscribe(manual_prime);
+        mqttClient.subscribe(change_value_ph, 1);
+        mqttClient.subscribe(change_value_ec, 1);
+        mqttClient.subscribe(change_value_air_hum, 1);
+        mqttClient.subscribe(change_value_air_temp, 1);
+        mqttClient.subscribe(harvest_command, 1);
+        mqttClient.subscribe(manual_prime, 1);
       }
       //publish connection status
       mqttClient.publish(connection,"connected");
