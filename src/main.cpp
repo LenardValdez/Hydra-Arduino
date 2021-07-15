@@ -185,7 +185,7 @@ void newCrop(byte* payload, unsigned int inputLength) {
   mqttClient.subscribe(change_value_ph, 1);
   mqttClient.subscribe(change_value_ec, 1);
   mqttClient.subscribe(change_value_air_hum, 1);
-  mqttClient.subscribe(change_value_air_temp), 1;
+  mqttClient.subscribe(change_value_air_temp, 1);
   mqttClient.subscribe(harvest_command, 1);
   mqttClient.subscribe(manual_prime, 1);
   mqttClient.subscribe(EC_PH_time);
