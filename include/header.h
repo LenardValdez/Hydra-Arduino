@@ -16,5 +16,5 @@
 #include <PubSubClient.h>
 #include <SPI.h>
 #include <millisDelay.h>
-#include <SSLClient.h>
+// #include <SSLClient.h>
 #endif // __HEADER_H__
