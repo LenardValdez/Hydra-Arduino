@@ -31,9 +31,10 @@ The things you need before installing the software.
 A step by step guide that will tell you how to get the development environment up and running.
 
 ```
-$ Use PlatformIO as IDE
-$ use Atmel SAM3X8E Arduino framework
-$ git pull to the same project folder made by PlatformIO
+# Use PlatformIO as IDE
+# use Atmel SAM3X8E Arduino framework
+# git pull to the same project folder made by PlatformIO
+$ git pull https://github.com/LenardValdez/Hydra-Arduino.git
 ```
 
 ## Usage
@@ -41,8 +42,8 @@ $ git pull to the same project folder made by PlatformIO
 other useful commands and/or tasks.
 
 ```
-$ If your gonna use TLS/SSL generate your certificate.h by following the instruction on SSLClient
-$ SSL cert and key is a X.509 SSL1.2 generated with openssl
+# If your gonna use TLS/SSL generate your certificate.h by following the instruction on SSLClient
+# SSL cert and key is a X.509 SSL1.2 generated with openssl
 ```
 
 ## Deployment
